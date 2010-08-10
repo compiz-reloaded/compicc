@@ -1,1 +1,6 @@
+Version 0.8.0
+
+Kai-Uwe Behrmann (2):
+	* [core]: initial commit
+	* [core]: support live monitor connect
 
