@@ -1,0 +1,434 @@
+
+COLLECT = ar cru
+RANLIB = ranlib
+LNK = ln -s
+POST = $(fltkconfig) --post
+RPMARCH = `rpmbuild --showrc | awk '/^build arch/ {print $$4}'`
+MSGCAT = msgcat
+MSGFMT = msgfmt -c --statistics
+
+docdir          = $(datadir)/doc/$(TARGET)
+SRCDIR          = $(src_dir)
+BUILDDIR        = $(build_dir)/
+
+LIBRARIES = $(TARGET) $(LIB_FORMS_FLTK)
+LIBSONAMEFULL = lib$(TARGET)$(SO).$(VERSION)$(LIBEXT)
+LIBSONAME = lib$(TARGET)$(SO).$(VERSION_A)$(LIBEXT)
+LIBSO = lib$(TARGET)$(SO)$(LIBEXT)
+
+#ifdef X11
+LIB_XNVCTRL = $(LIB_XNVCTRL_STATIC)
+LIB_XNVCTRL_NAME = $(LIB_XNVCTRL_NAME_STATIC)
+#endif
+
+INCL= -I/usr/include -I$(includedir) -I$(SRCDIR) \
+	$(OYRANOS_H) $(X_H) $(OS_INCL) $(COMPIZ_H) $(XCM_INC)
+
+LDLIBS = $(LDFLAGS) -L$(libdir) -L. \
+	$(ELEKTRA_LIBS) $(LIBXML2_LIBS) -lc $(I18N_LIB)
+
+MODULE_LDLIBS =	-l$(TARGET) $(lc) 
+
+CHEADERS =
+CFILES = \
+	colour_desktop.c
+
+TEST_CPP = \
+	tests/dl_test.cxx \
+	tests/gettext_test.cxx \
+	tests/intptr_test.c \
+	tests/lib_test.cxx \
+	tests/library.c \
+	tests/openmp.c \
+	tests/openmp_main.c \
+	tests/test_oyranos.c
+
+CPPFILES =
+CXXFILES =
+TEST_FILES = $(TEST_CPP) $(TEST_H)
+
+
+ICONS = \
+	plugin-colour_desktop.svg
+DOKU =  AUTHORS \
+        ChangeLog \
+        COPYING \
+        README
+DOC_TEMPLATES =
+
+MIME_TYPES = \
+	colour_desktop.xml
+
+LINGUAS_SRC = $(LING:.po=.gmo)
+POT_FILE = #po/$(TARGET).pot
+POT_SCRIPT =
+
+SCRIPTS = $(POT_SCRIPT)
+
+TOP_SOURCES = $(CPPFILES) $(CXXFILES) $(CFILES) $(CFILESC)
+SOURCES =  \
+		$(TOP_SOURCES)
+
+
+# we need these files to generate explicite targets for out of tree builds
+COBJECTS = \
+	$(CFILES:.c=.o) $(CFILESC:.c=.o)
+CPPOBJECTS =
+CXXOBJECTS =	$(CXXFILES)
+
+OBJECTS = $(CPPFILES:.cpp=.o) $(CXXFILES:.cxx=.o) $(CFILES:.c=.o) $(CFILESC:.c=.o)
+
+CLEAN_OBJECTS = $(OBJECTS)
+
+INCL_DEP = $(SOURCES)
+
+.PHONY:
+
+
+CONFIG_FILES = \
+	$(SRCDIR)/configure \
+	$(SRCDIR)/configure_tests.sh \
+	$(SRCDIR)/makefile.in \
+	$(SRCDIR)/$(TARGET).spec.in \
+	$(SRCDIR)/$(TARGET)_control.in
+
+ALL_FILES = \
+	$(DOKU) \
+	$(ICONS) \
+	$(MIME_TYPES) \
+	$(TOP_SOURCES) \
+	$(CHEADERS) \
+	$(SCRIPTS) \
+	$(MAN1) $(MAN3) \
+	$(DOC_TEMPLATES)
+
+# build all what is needed to run the libraries, helpers
+all:	config.log.h mkdepend \
+	$(LIBSONAMEFULL) \
+	$(LINGUAS_SRC)
+	echo ... $@ done
+
+
+# get time stamp
+MTIME   := $(shell date +%y%m%d.%H%M%S)
+
+# this is a test
+time:
+	echo $(MTIME)
+
+# build all objects and libraries, link the headers to $(TARGET)
+$(LIBSONAMEFULL):	$(OBJECTS)
+	echo Linking $@ ...
+	$(CC) -I./ $(CFLAGS) $(LINK_FLAGS_DYNAMIC)$(dyld_libdir)$(LIBSONAME) \
+	-o $(LIBSONAMEFULL) \
+	$(OBJECTS) \
+	-L$(libdir) $(LDLIBS) $(m)
+	$(RM)  $(LIBSONAME)
+	$(LNK) $(LIBSONAMEFULL) $(LIBSONAME)
+	$(RM)  $(LIBSO)
+	$(LNK) $(LIBSONAMEFULL) $(LIBSO)
+
+
+$(LINGUAS_SRC):	$(SRCDIR)/$(POT_FILE)
+	echo Linguas ... $(@:.gmo=)
+	mkdir -p po/
+	for ling in $(@:.gmo=); do \
+	  lingua=`echo $${ling} | sed s%po/%%g | sed s%$(SRCDIR)/%%g`; \
+	  echo "update po/$${lingua}.gmo ..."; \
+	  test -f $(SRCDIR)/$${ling}.po \
+        && ($(MSGFMT) -o po/$${lingua}.gmo $(SRCDIR)/$${ling}.po; \
+            if [ ! -d po/$${lingua} ]; then \
+              mkdir po/$${lingua}; \
+            fi; \
+            if [ ! -d po/$${lingua}/LC_MESSAGES ]; then \
+              mkdir po/$${lingua}/LC_MESSAGES; \
+            fi; \
+            test -L po/$${lingua}/LC_MESSAGES/$(TARGET).mo \
+              && $(RM) po/$${lingua}/LC_MESSAGES/$(TARGET).mo \
+              || echo po/$${lingua}/LC_MESSAGES/$(TARGET).mo nicht gefunden; \
+            ln -s ../../$${lingua}.gmo po/$${lingua}/LC_MESSAGES/$(TARGET).mo;) \
+        || (echo $(SRCDIR)/$${ling}.po is not yet ready ... skipping) \
+	done;
+
+$(SRCDIR)/$(POT_FILE):
+	echo Generating $(SRCDIR)/$(POT_FILE) ...
+	mkdir -p $(SRCDIR)/po
+	test `which xgettext` && (cd $(SRCDIR); \
+	  xgettext --force-po $(XGETTEXT_OPTIONS) \
+	   -d $(TARGET) \
+	   -o $(SRCDIR)/$(POT_FILE) -c \
+	   $(SOURCES) $(CHEADERS)) \
+	|| echo -e "\c"
+	-$(MSGCAT) $(SRCDIR)/po/*.pot -o $(SRCDIR)/po/oyranos.pot
+	for ling in $(SRCDIR)/po/*.po; do \
+	  lingua=`echo $${ling} | sed 's%$(SRCDIR)/po/%%g ; s%.po%%'`; \
+	  test `which $(MSGMERGE)` && \
+	         $(MSGMERGE) $(MSGMERG_OPTS) $(SRCDIR)/po/$${lingua}.po \
+	         $(SRCDIR)/$(POT_FILE) || \
+	    echo -e "\c"; \
+	done;
+	echo ... $(SRCDIR)/$(POT_FILE) done
+
+
+
+# the copy part for this directory level
+install_bin:	all uninstall_bin
+	echo Installing binaries ...
+	mkdir -p $(DESTDIR)$(libdir)
+	for lib in $(LIBRARIES); do \
+	   test -f lib$${lib}$(SO).$(VERSION)$(LIBEXT) && \
+		($(INSTALL) -m 755 lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
+		$(DESTDIR)$(libdir)/lib$${lib}$(SO)$(LIBEXT) \
+		); \
+	   if [ "$(STATIC)" = "" ]; then test -f lib$${lib}.a && \
+		($(INSTALL) -m 644 lib$${lib}.a $(DESTDIR)$(libdir);\
+		$(RANLIB) $(DESTDIR)$(libdir)/lib$${lib}.a \
+		) || echo ""; \
+           fi; \
+	done
+	echo ... binary Installation finished
+
+# install recursive
+install:	uninstall install-main
+	echo ... $@ done
+
+install-main:	install_bin install_mime install_linguas
+
+
+install_mime:
+	echo register into $(DESTDIR)$(datadir)/compiz ...
+	mkdir -p $(DESTDIR)$(datadir)/compiz/
+	$(INSTALL) -m 644 $(SRCDIR)/$(MIME_TYPES) $(DESTDIR)$(datadir)/compiz/
+	echo adding icons to $(DESTDIR)$(icondir) ...
+	mkdir -p $(DESTDIR)$(icondir)
+	$(INSTALL) -m 644 $(SRCDIR)/$(ICONS) $(DESTDIR)$(icondir)/$(ICONS)
+	echo ... done installing mime types and icons
+
+
+
+
+install_linguas:
+	echo Install linguas ...
+	for ling in $(LINGUAS); do \
+	  echo "Installing po/$${ling}.gmo ..."; \
+	  test -f po/$${ling}.gmo \
+		&& (mkdir -p $(DESTDIR)$(datadir)/locale/$${ling}/LC_MESSAGES; \
+            $(INSTALL) -m 644 po/$${ling}.gmo $(DESTDIR)$(datadir)/locale/$${ling}/LC_MESSAGES/$(TARGET).mo ) \
+		|| (echo $${ling}.gmo is not yet ready ... skipping); \
+	done;
+
+# build a source distribution package
+dist: targz
+	test -d ../Archiv && mv -v ../Archiv/$(TARGET)-$(MTIME).tgz $(TARGET)-$(VERSION).tar.gz || mv -v $(TARGET)-$(MTIME).tgz $(TARGET)-$(VERSION).tar.gz
+
+dist-gzip:	dist
+
+# build a binary rpm package
+rpm:	dist
+	$(SRCDIR)/configure --prefix=/usr --rpm-only # generate the spec file
+	mkdir -p rpmdir/BUILD \
+	rpmdir/SPECS \
+	rpmdir/SOURCES \
+	rpmdir/SRPMS \
+	rpmdir/RPMS/$(RPMARCH)
+	$(COPY) -f $(TARGET)-$(VERSION).tar.gz rpmdir/SOURCES
+	rpmbuild --clean -ba $(build_dir)/$(TARGET).spec --define "_topdir $$PWD/rpmdir"
+	@echo "============================================================"
+	@echo "Finished - the packages are in rpmdir/RPMS and rpmdir/SRPMS!"
+
+deb:	dist
+	$(SRCDIR)/configure --prefix=/usr --rpm-only
+	mkdir -p debian/deb/DEBIAN
+	tar xvzf $(TARGET)-$(VERSION).tar.gz
+	(cd $(TARGET)-$(VERSION); \
+	./configure --prefix=/usr; \
+	make DESTDIR=$(build_dir)/debian/deb/DEBIAN install;)
+	$(COPY) $(TARGET)-$(VERSION)/$(TARGET)_control $(build_dir)/debian/deb/DEBIAN/control
+	$(RM) -R $(TARGET)-$(VERSION)
+	dpkg -b $(build_dir)/debian/deb debian/$(TARGET)_$(VERSION)-$(RELEASE)_$(deb_arch).deb
+	$(RM) -R $(build_dir)/debian/deb
+	echo ... $@ done
+
+# remove everything previously installed
+uninstall:	uninstall_bin uninstall_linguas
+	echo ... $@ done
+
+uninstall_bin:
+	echo Uninstalling binaries ...
+	for lib in $(LIBRARIES); do \
+	    $(RM) $(DESTDIR)$(libdir)/lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
+	          $(DESTDIR)$(libdir)/lib$${lib}$(SO).$(VERSION_A)$(LIBEXT) \
+	          $(DESTDIR)$(libdir)/lib$${lib}$(SO)$(LIBEXT) \
+	          $(DESTDIR)$(libdir)/lib$${lib}.a; \
+	done
+	echo ... done uninstalling binaries
+	
+
+uninstall_mime:
+	echo uninstalling mime types from $(DESTDIR)$(datadir)/mime/packages ...
+	for mime in $(MIME_TYPES); do \
+	  $(RM) $(DESTDIR)$(datadir)/mime/packages/$${mime}; \
+	done
+	echo removing icons from $(DESTDIR)$(icondir) ...
+	$(RM) $(DESTDIR)$(icondir)/$(ICONS)
+	echo ... done uninstalling mime types
+
+uninstall_linguas:
+	echo Uninstalling linguas ...
+	for ling in $(LINGUAS); do \
+	  $(RM) $(DESTDIR)$(datadir)/locale/$${ling}/LC_MESSAGES/$(TARGET).mo; \
+	done;
+	echo ... done uninstalling linguas
+
+
+
+# remove in this directory
+distclean: clean
+	-$(RM) Makefile
+	-$(RM) mkdepend cobjects config.h $(TARGET).spec
+	-$(RM) config.log.h config.tmp.sh testset.txt
+	(cd fl_i18n/po; $(RM) -R ar de eo eu fr hy ja ru uk zh_CN)
+
+clean:
+	for ling in $(LINGUAS); do \
+	  test -f po/$${ling}.gmo \
+        && $(RM) po/$${ling}.gmo; \
+	done;
+	for lib in $(LIBRARIES); do \
+	   $(RM) lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
+	         lib$${lib}$(SO).$(VERSION_A)$(LIBEXT) \
+	         lib$${lib}$(SO)$(LIBEXT) \
+	         lib$${lib}.a; \
+	done
+	echo ... $@ done
+
+# configure if the file config is not available
+config.log.h:	$(CONFIG_FILES) ./config.log
+	./config.log
+
+# try to resolve dependencies
+depend:	cdepend
+	echo "setting up dependencies ..."
+	echo "MAKEDEPEND_ISUP = 1" > mkdepend
+	echo "#nicht editieren/dont edit - automatisch generiert von makefile.in" >> mkdepend
+	-(for file in $(INCL_DEP); do \
+	    incl_src="$${incl_src} $(SRCDIR)/$${file}"; done; \
+	  $(MAKEDEPEND) -I./ -I$(SRCDIR) $(INCL) $${incl_src} >> mkdepend)
+
+cdepend:
+	echo preparing dependency compilation ...
+	echo "COBJECTS_ISUP = 1" > cobjects
+	echo "#nicht editieren/dont edit - automatisch generiert von makefile.in" >> cobjects
+	echo "" >> cobjects
+	for i in $(COBJECTS); do \
+	  echo "$${i}:	\$$(SRCDIR)/$${i}" | sed s/\.o\$$/.c/ >> cobjects; \
+	  echo "	echo Compiling $${i} ..." >> cobjects; \
+	  echo '	$$(CC) -I./ -I$$(SRCDIR) $$(CFLAGS) $$(INCL) -c -o $$*.o $$(SRCDIR)/$$*.c' >> cobjects; \
+	  echo "" >> cobjects; \
+	done
+	for i in $(CPPOBJECTS); do \
+	  echo "$${i}:	\$$(SRCDIR)/$${i}" | sed s/\.o\$$/.cpp/ >> cobjects; \
+	  echo "	echo Compiling $${i} ..." >> cobjects; \
+	  echo '	$$(CXX) -I./ -I$$(SRCDIR) $$(CXXFLAGS) $$(INCL) -c -o $$*.o $$(SRCDIR)/$$*.cpp' >> cobjects; \
+	  echo "" >> cobjects; \
+	done
+	for i in $(CXXOBJECTS); do \
+	  echo "$${i}:	\$$(SRCDIR)/$${i}" | sed s/\.o\$$/.cxx/ >> cobjects; \
+	  echo "	echo Compiling $${i} ..." >> cobjects; \
+	  echo '	$$(CXX) -I./ -I$$(SRCDIR) $$(CXXFLAGS) $$(INCL) -c -o $$*.o $$(SRCDIR)/$$*.cxx' >> cobjects; \
+	  echo "" >> cobjects; \
+	done
+
+
+# Build commands and filename extensions...
+.SUFFIXES:	.c .cxx .h .o .po
+
+
+.c.o:
+	echo Compiling $(SRCDIR)/$< ...
+	$(CC) -I. $(CFLAGS) $(INCL) -c -o $@ $(SRCDIR)/$<
+
+.cxx.o:
+	echo Compiling $(SRCDIR)/$< ...
+	$(CXX) -I. $(CXXFLAGS) $(INCL) $(FLTK_H) -c -o $@ $(SRCDIR)/$<
+
+.cpp.o:	mkdepend
+	echo Compiling $(SRCDIR)/$< ...
+	$(CXX) -I. $(CXXFLAGS) $(INCL) -c -o $@ $(SRCDIR)/$<
+
+.po:
+	echo Generating $@ ...
+	msgfmt $<
+
+
+# smallest package covering the current directory
+tgz:
+	-test -d Entwickeln && $(RM) -r Entwickeln
+	$(MAKE) DESTDIR=Entwickeln copy_files
+	tar cf - Entwickeln/ \
+	| gzip > $(TARGET)_$(MTIME).tgz
+	-test -d ../Archiv && mv -v $(TARGET)_*.tgz ../Archiv
+	-test -d Entwickeln && \
+	test `pwd` != `(cd Entwickeln; pwd)` && \
+	rm -R Entwickeln
+
+# build the source package including the subdirectories
+targz:
+	test -d $(TARGET)-$(VERSION) && $(RM) -R $(TARGET)-$(VERSION) || echo -e "\c"
+	$(MAKE) DESTDIR=$(build_dir)/$(TARGET)-$(VERSION) copy_files
+	cd default_profiles; \
+	tar cf - $(TARGET)-$(VERSION)/ \
+	| gzip > $(build_dir)/$(TARGET)-$(MTIME).tgz
+	test -d $(build_dir)/$(TARGET)-$(VERSION) && \
+	test `pwd` != `(cd $(build_dir)/$(TARGET)-$(VERSION); pwd)` && \
+	$(RM) -R $(build_dir)/$(TARGET)-$(VERSION)
+	test -d ../Archiv && mv -v $(TARGET)-*.tgz ../Archiv || echo "no copy"
+
+# basic file set
+copy_files:
+	mkdir $(DESTDIR)
+	cd $(SRCDIR) && \
+	  $(COPY) -R $(ALL_FILES) $(DESTDIR)
+	$(COPY) $(CONFIG_FILES) $(DESTDIR)
+	mkdir $(DESTDIR)/tests
+	cd $(SRCDIR) && \
+	  $(COPY) $(TEST_FILES) $(DESTDIR)/tests
+	mkdir $(DESTDIR)/po
+	test -f $(SRCDIR)/$(POT_FILE) && ( \
+	cd $(SRCDIR) && \
+	  $(COPY) $(POT_FILE) $(DESTDIR)/po ) || echo ""
+	for ling in $(LINGUAS); do \
+	  test -f $(SRCDIR)/po/$${ling}.po \
+	  && $(COPY) $(SRCDIR)/po/$${ling}.po $(DESTDIR)/po/; \
+	done;
+	echo ... $@ done
+
+help:
+	echo "... all :        build the binaries"
+	echo "... "
+	echo "... install :    install the binaries, include files and data"
+	echo "... install_bin: install only binaries"
+	echo "... uninstall"
+	echo "... clean :      remove binaries, object files and most processed data"
+	echo "... distclean :  remove all files processed from configure scripts"
+	echo "... rpm :        build RPM's"
+	echo "... dist :       build a distribution tarball and place local"
+	echo "... targz :      build a distribution tar ball"
+	echo "... tgz :        build a development tar ball"
+	echo "... copy_files : copy distribution files to a DESTDIR=xxx path"
+	echo "... depend :     resolve dependencies"
+	echo "  VARIABLES:"
+	echo "... DESTDIR=\"/user/a/My Install Dir/\" install"
+	echo "... BUILDDIR=../build_local"
+
+# dependencies
+include mkdepend
+include cobjects
+
+#ifndef MAKEDEPEND_ISUP
+mkdepend: depend
+#endif
+#ifndef COBJECTS_ISUP
+cobjects: cdepend
+#endif
+

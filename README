@@ -1,0 +1,44 @@
+Compicc
+
+    The Compiz ICC colour server, or short compicc, lets you colour manage your
+    whole desktop at once and in hardware. Play movies, watch images on wide or
+    narrow gamut displays. Each connected monitor is colour corrected for its
+    own.
+
+Internet:
+    git:  it://compicc.git.sourceforge.net/gitroot/compicc/compicc (read-only)
+
+
+Dependencies:
+    Compiz
+    Oyranos colour management system
+
+  Debian:
+    locales
+    build-essential
+    libxml2-dev (if you want xml importing/exporting)
+    elektra-0.7.0 can now be installed successfully.
+
+    pkg-config
+    gettext
+    fltk1.1-dev (ubuntu8.10: libfltk1.1-dev)
+    libpng12-dev
+    liblcms1-dev
+    libcairo2-dev
+    x11proto-xf86vidmode-dev
+    x11proto-xext-dev
+    libxxf86vm-dev
+    libxrandr-dev
+    libxinerama-dev
+    oyranos-0.1.10 can now be installed successfully.
+    doxygen
+    graphviz
+    libxfixes-dev
+    fluid
+
+Building:
+    $ configure
+    $ make
+    $ make install
+
+
