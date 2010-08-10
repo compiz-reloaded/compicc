@@ -11,7 +11,7 @@ docdir          = $(datadir)/doc/$(TARGET)
 SRCDIR          = $(src_dir)
 BUILDDIR        = $(build_dir)/
 
-LIBRARIES = $(TARGET) $(LIB_FORMS_FLTK)
+LIBRARIES = $(TARGET)
 LIBSONAMEFULL = lib$(TARGET)$(SO).$(VERSION)$(LIBEXT)
 LIBSONAME = lib$(TARGET)$(SO).$(VERSION_A)$(LIBEXT)
 LIBSO = lib$(TARGET)$(SO)$(LIBEXT)
@@ -294,6 +294,7 @@ clean:
 	  test -f po/$${ling}.gmo \
         && $(RM) po/$${ling}.gmo; \
 	done;
+	$(RM) $(OBJECTS)
 	for lib in $(LIBRARIES); do \
 	   $(RM) lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
 	         lib$${lib}$(SO).$(VERSION_A)$(LIBEXT) \
