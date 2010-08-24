@@ -25,7 +25,7 @@ INCL= -I/usr/include -I$(includedir) -I$(SRCDIR) \
 	$(OYRANOS_H) $(X_H) $(OS_INCL) $(COMPIZ_H) $(XCM_H)
 
 LDLIBS = $(LDFLAGS) -L$(libdir) -L. \
-	$(ELEKTRA_LIBS) $(LIBXML2_LIBS) -lc $(I18N_LIB)
+	$(OYRANOS_LIBS) $(LIBXML2_LIBS) -lc $(I18N_LIB)
 
 MODULE_LDLIBS =	-l$(TARGET) $(lc) 
 
