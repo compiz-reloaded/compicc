@@ -368,7 +368,7 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   int function = -1;
 
 #if defined(PLUGIN_DEBUG_)
-  oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "Shader request: %d/%d %d/%d/%d %d/%d/%d",DBG_ARGS,
                   ps->function, ps->function_2,
                   param, ps->param, ps->param_2,
@@ -397,10 +397,10 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   /* needless? */
   //addColorOpToFunctionData (data, "output", "output");
 
-  function = createFragmentFunction(s, "colour_desktop", data);
+  function = createFragmentFunction(s, "compicc", data);
 
 #if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "Shader compiled: %d/%d/%d", DBG_ARGS,
                   function, param, unit);
 #endif
@@ -544,7 +544,7 @@ static void updateWindowRegions(CompWindow *w)
     pw->stencil_id = 0;
 
 #if defined(PLUGIN_DEBUG_)
-  oyCompLogMessage(d, "colour_desktop", CompLogLevelDebug, "\n  Updated window regions, %d total now; id:%d %dx%d", count, pw->stencil_id, w->serverWidth,w->serverHeight);
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "\n  Updated window regions, %d total now; id:%d %dx%d", count, pw->stencil_id, w->serverWidth,w->serverHeight);
 #endif
 
   pw->absoluteWindowRectangleOld = oyRectangle_NewWith( 0,0, w->serverWidth, w->serverHeight, 0 );
@@ -573,7 +573,7 @@ static void updateWindowOutput(CompWindow *w)
   pw->output = fetchProperty(d->display, w->id, pd->netColorTarget, XA_STRING, &nBytes, False);
 
 #if defined(_NET_COLOR_DEBUG)
-  oyCompLogMessage(d, "colour_desktop", CompLogLevelDebug, "Updated window output, target is %s", pw->output);
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Updated window output, target is %s", pw->output);
 #endif
 
   if(!pw->nRegions)
@@ -718,7 +718,7 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
                                                                  0 );
 
       if(!screen_document_profile)
-        oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                           DBG_STRING"Could not get oyASSUMED_WEB", DBG_ARGS);
 
       if(!ignore) ignore = oyProfiles_New(0);
@@ -746,7 +746,7 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
 
   } else
     if(target_atom && init)
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                         DBG_STRING"icc_colour_server_profile_atom already present %d size:%lu",
                         DBG_ARGS, target_atom, target_n );
 
@@ -778,14 +778,14 @@ static int     getDeviceProfile      ( CompScreen        * s,
     o = oyConfig_Find( device, "device_rectangle" );
     if( !o )
     {
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING"monitor rectangle request failed", DBG_ARGS);
       return 1;
     }
     r = (oyRectangle_s*) oyOption_StructGet( o, oyOBJECT_RECTANGLE_S );
     if( !r )
     {
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING"monitor rectangle request failed", DBG_ARGS);
       return 1;
     }
@@ -802,14 +802,14 @@ static int     getDeviceProfile      ( CompScreen        * s,
       strcpy( output->name, device_name );
 
 #if defined(PLUGIN_DEBUG)
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                       DBG_STRING "  screen output found %s %s",
                       DBG_ARGS, output->name, oyRectangle_Show(r) );
 #endif
 
     } else
     {
-       oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+       oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
        DBG_STRING "oyDevicesGet list answere included no device_name",DBG_ARGS);
 
        strcpy( output->name, num );
@@ -862,7 +862,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
         oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
         if(oyProfile_Equal( web, output->oy_profile ))
         {
-          oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+          oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING "Output %s ignoring fallback %d",
                       DBG_ARGS, output->name, error);
           oyProfile_Release( &output->oy_profile );
@@ -872,7 +872,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
       }
     } else
     {
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING "Output %s: no ICC profile found %d",
                       DBG_ARGS, output->name, error);
       error = 1;
@@ -903,7 +903,7 @@ static void    setupColourTables     ( CompScreen        * s,
 #if defined(PLUGIN_DEBUG_)  /* expensive lookup */
       const char * tmp = oyProfile_GetFileName( output->oy_profile, 0 );
       
-      oyCompLogMessage(s->display, "colour_desktop", CompLogLevelInfo,
+      oyCompLogMessage(s->display, "compicc", CompLogLevelInfo,
              DBG_STRING "Output %s: extracted profile from Oyranos: %s",
              DBG_ARGS, output->name,
              (strrchr(tmp, OY_SLASH_C)) ? strrchr(tmp, OY_SLASH_C) + 1 : tmp );
@@ -934,7 +934,7 @@ static void    setupColourTables     ( CompScreen        * s,
 
       if (cc == NULL)
       {
-        oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING "no conversion created for %s",
                       DBG_ARGS, output->name);
         return;
@@ -969,7 +969,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyConversion_Release( &cc );
 
     } else {
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelInfo,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelInfo,
                       DBG_STRING "Output %s: no profile",
                       DBG_ARGS, output->name);
     }
@@ -1006,7 +1006,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
-  DBG
 
   /* clean memory */
   if(init)
@@ -1015,42 +1014,35 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     freeOutput(ps); END_CLOCK
   }
 
-  DBG
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
                                  "list", OY_CREATE_NEW );
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
-  DBG
   /*error = oyOptions_SetFromText( &options,
                                  "//" OY_TYPE_STD "/config/display_name",
                                  DisplayString( s->display->display ),
                                  OY_CREATE_NEW );*/
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-  DBG
   n = oyOptions_Count( options );
   //printf( DBG_STRING "options: %d devices: %d %s\n", DBG_ARGS, n, oyConfigs_Count( devices ) );
   oyOptions_Release( &options );
 
   n = oyConfigs_Count( devices );
 #if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                DBG_STRING "Oyranos monitor \"%s\" devices found: %d init: %d",
                     DBG_ARGS, DisplayString( s->display->display ), n, init);
 #endif
 
-  DBG
   if(init)
   {
-  DBG
     ps->nCcontexts = n;
     ps->ccontexts = malloc(ps->nCcontexts * sizeof(PrivColorOutput));
     memset( ps->ccontexts, 0, ps->nCcontexts * sizeof(PrivColorOutput));
-  DBG
   }
 
-  DBG
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nCcontexts; ++i)
   {
@@ -1065,7 +1057,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
       setupColourTables ( s, device, i );
     } else
     {
-      oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "No profile found on desktops %d/%d 0x%lx 0x%lx",
                   DBG_ARGS, i, ps->nCcontexts, &ps->ccontexts[i], ps->ccontexts[i].oy_profile);
     }
@@ -1073,24 +1065,20 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     oyConfig_Release( &device );
   }
   oyConfigs_Release( &devices );
-  DBG
 
 #if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "Updated screen outputs, %d total  (%d)",
                   DBG_ARGS, ps->nCcontexts, init);
 #endif
-  DBG
   START_CLOCK("damageWindow(s)")
   {
     int all = 1;
     forEachWindowOnScreen( s, damageWindow, &all );
   } END_CLOCK
 
-  DBG
   if(init)
     updateNetColorDesktopAtom( s, ps, 2 );
-  DBG
 }
 
 /**
@@ -1110,7 +1098,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
   CompScreen * s = findScreenAtDisplay(d, event->xany.window);
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
-  DBG
 
   /* initialise */
   if(s && ps && s->nOutputDev != ps->nCcontexts)
@@ -1119,11 +1106,9 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     printf( DBG_STRING "s->nOutputDev %d != ps->nCcontexts %d\n", DBG_ARGS,
             (int)s->nOutputDev, (int)ps->nCcontexts );
 #endif
-  DBG
     updateOutputConfiguration( s, TRUE);
   }
  
-  DBG
 
   switch (event->type)
   {
@@ -1216,7 +1201,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
                 oyProfile_Release( &ps->ccontexts[screen].oy_profile );
                 ps->ccontexts[screen].oy_profile = sp;
               } else
-                oyCompLogMessage( s->display, "colour_desktop",CompLogLevelWarn,
+                oyCompLogMessage( s->display, "compicc",CompLogLevelWarn,
                     DBG_STRING "ccontexts not ready for screen %d / %d",
                     DBG_ARGS, screen, ps->nCcontexts );
               
@@ -1496,7 +1481,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 #endif
 
   if(w->screen->nOutputDev != ps->nCcontexts)
-    oyCompLogMessage( s->display, "colour_desktop", CompLogLevelWarn,
+    oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                     DBG_STRING "Need to update screen outputs, %d / %d",
                     DBG_ARGS, ps->nCcontexts, w->screen->nOutputDev );
 
@@ -1658,7 +1643,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   static time_t net_color_desktop_last_time = 0;
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
-  const char * my_id = "compiz_colour_desktop",
+  const char * my_id = "compicc",
              * my_capabilities = "|NCR|V0.3|"; /* _NET_COLOR_REGIONS */
   unsigned long n = 0;
   char * data = 0;
@@ -1709,7 +1694,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if(n && data && old_pid != (int)pid)
   {
     if(old_atom && atom_time + 60 < cutime)
-      oyCompLogMessage( d, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\n!!! Found old _NET_COLOR_DESKTOP pid: %s.\n"
                     "Eigther there was a previous crash or your setup can be double colour corrected.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
@@ -1719,18 +1704,18 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
       if(atom_time < net_color_desktop_last_time ||
          request == 2)
       {
-        oyCompLogMessage( d, "colour_desktop", CompLogLevelWarn,
+        oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nTaking over colour service from old _NET_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
       } else
       if(atom_time > net_color_desktop_last_time)
-        oyCompLogMessage( d, "colour_desktop", CompLogLevelWarn,
+        oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nGiving colour service to _NET_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
      
     } else
     if(old_atom)
-      oyCompLogMessage( d, "colour_desktop", CompLogLevelWarn,
+      oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nTaking over colour service from old _NET_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
   }
@@ -1900,7 +1885,7 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
 
   n = oyConfigs_Count( devices );
 #if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "Oyranos monitor \"%s\" devices found: %d",
                   DBG_ARGS, DisplayString( s->display->display ), n);
 #endif
@@ -2121,7 +2106,7 @@ oyPointer pluginGetPrivatePointer( CompObject * o )
     ptr = malloc( privateSizes[o->type] ); if(!ptr) return FALSE;
     memset( ptr, 0, privateSizes[o->type] );
     priv_ptr = oyCMMptr_New( malloc );
-    int error = oyCMMptr_Set( priv_ptr, "colour_desktop", hash_text, ptr, 
+    int error = oyCMMptr_Set( priv_ptr, "compicc", hash_text, ptr, 
                               "pluginPrivatesRelease", pluginPrivatesRelease );
 #if defined(PLUGIN_DEBUG_)
     printf( DBG_STRING "allocated private data: %s", DBG_ARGS, hash_text );
@@ -2228,7 +2213,7 @@ static CompMetadata *pluginGetMetadata(CompPlugin *p)
 }
 
 CompPluginVTable pluginVTable = {
-  "colour_desktop",
+  "compicc",
   pluginGetMetadata,
   pluginInit,
   pluginFini,
