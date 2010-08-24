@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <compiz>
-  <plugin name="colour_desktop">
+  <plugin name="compicc">
     <short>Color Management</short>
     <short xml:lang="de">Farbmanagement</short>
     <short xml:lang="en_GB">Colour Management</short>

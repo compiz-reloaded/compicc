@@ -49,7 +49,7 @@ TEST_FILES = $(TEST_CPP) $(TEST_H)
 
 
 ICONS = \
-	plugin-colour_desktop.svg
+	plugin-compicc.svg
 DOKU =  AUTHORS \
         ChangeLog \
         COPYING \
@@ -57,7 +57,7 @@ DOKU =  AUTHORS \
 DOC_TEMPLATES =
 
 MIME_TYPES = \
-	colour_desktop.xml
+	compicc.xml
 
 LINGUAS_SRC = $(LING:.po=.gmo)
 POT_FILE = #po/$(TARGET).pot

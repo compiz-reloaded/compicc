@@ -57,7 +57,7 @@ rm -rf %{buildroot}
 %post
 ldconfig
 # enable the plugin
-test -f /usr/share/compizconfig/global.xml && (if [ "`cat /usr/share/compizconfig/global.xml | grep colour_desktop | wc -l`" = "0" ]; then cat /usr/share/compizconfig/global.xml | sed 's/<value>core<\/value>/<value>core<\/value>\n                                        <value>colour_desktop<\/value>/'> ccp_global.xml; mv -v ccp_global.xml /usr/share/compizconfig/global.xml; fi)
+test -f /usr/share/compizconfig/global.xml && (if [ "`cat /usr/share/compizconfig/global.xml | grep compicc | wc -l`" = "0" ]; then cat /usr/share/compizconfig/global.xml | sed 's/<value>core<\/value>/<value>core<\/value>\n                                        <value>compicc<\/value>/'> ccp_global.xml; mv -v ccp_global.xml /usr/share/compizconfig/global.xml; fi)
 exit 0
 
 %postun
@@ -75,7 +75,7 @@ ldconfig
 %dir /usr/share/ccsm/icons/hicolor/
 %dir /usr/share/ccsm/icons/hicolor/scalable/
 %dir %{icondir}/
-%{icondir}/plugin-colour_desktop.svg
+%{icondir}/plugin-compicc.svg
 
 
 %changelog
