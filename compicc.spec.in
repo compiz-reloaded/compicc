@@ -69,7 +69,7 @@ ldconfig
 %dir %{_libdir}/compiz/
 %{_libdir}/compiz/libcompicc.so
 %dir %{_datadir}/compiz/
-%{_datadir}/compiz/*
+%{_datadir}/compiz/compicc.xml
 %dir /usr/share/ccsm/
 %dir /usr/share/ccsm/icons/
 %dir /usr/share/ccsm/icons/hicolor/
