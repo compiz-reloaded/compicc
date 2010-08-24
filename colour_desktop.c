@@ -68,6 +68,11 @@
 
 #define STENCIL_ID (pw->stencil_id*ps->nCcontexts + i + 1)
 
+#if defined(PLUGIN_DEBUG)
+#define DBG  printf("%s:%d %s() %.02f\n", DBG_ARGS);
+#else
+#define DBG
+#endif
 
 #define DBG_STRING "\n  %s:%d %s() %.02f "
 #define DBG_ARGS (strrchr(__FILE__,'/') ? strrchr(__FILE__,'/')+1 : __FILE__),__LINE__,__func__,(double)clock()/CLOCKS_PER_SEC
@@ -1001,6 +1006,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
+  DBG
 
   /* clean memory */
   if(init)
@@ -1009,17 +1015,20 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     freeOutput(ps); END_CLOCK
   }
 
+  DBG
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
                                  "list", OY_CREATE_NEW );
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
+  DBG
   /*error = oyOptions_SetFromText( &options,
                                  "//" OY_TYPE_STD "/config/display_name",
                                  DisplayString( s->display->display ),
                                  OY_CREATE_NEW );*/
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+  DBG
   n = oyOptions_Count( options );
   //printf( DBG_STRING "options: %d devices: %d %s\n", DBG_ARGS, n, oyConfigs_Count( devices ) );
   oyOptions_Release( &options );
@@ -1031,13 +1040,17 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
                     DBG_ARGS, DisplayString( s->display->display ), n, init);
 #endif
 
+  DBG
   if(init)
   {
+  DBG
     ps->nCcontexts = n;
     ps->ccontexts = malloc(ps->nCcontexts * sizeof(PrivColorOutput));
     memset( ps->ccontexts, 0, ps->nCcontexts * sizeof(PrivColorOutput));
+  DBG
   }
 
+  DBG
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nCcontexts; ++i)
   {
@@ -1060,20 +1073,24 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     oyConfig_Release( &device );
   }
   oyConfigs_Release( &devices );
+  DBG
 
 #if defined(PLUGIN_DEBUG)
   oyCompLogMessage( s->display, "colour_desktop", CompLogLevelDebug,
                   DBG_STRING "Updated screen outputs, %d total  (%d)",
                   DBG_ARGS, ps->nCcontexts, init);
 #endif
+  DBG
   START_CLOCK("damageWindow(s)")
   {
     int all = 1;
     forEachWindowOnScreen( s, damageWindow, &all );
   } END_CLOCK
 
+  DBG
   if(init)
     updateNetColorDesktopAtom( s, ps, 2 );
+  DBG
 }
 
 /**
@@ -1093,6 +1110,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
   CompScreen * s = findScreenAtDisplay(d, event->xany.window);
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
+  DBG
 
   /* initialise */
   if(s && ps && s->nOutputDev != ps->nCcontexts)
@@ -1101,9 +1119,11 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     printf( DBG_STRING "s->nOutputDev %d != ps->nCcontexts %d\n", DBG_ARGS,
             (int)s->nOutputDev, (int)ps->nCcontexts );
 #endif
+  DBG
     updateOutputConfiguration( s, TRUE);
   }
  
+  DBG
 
   switch (event->type)
   {
