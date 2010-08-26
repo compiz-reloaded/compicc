@@ -1,5 +1,5 @@
 /**
- *  @file     colour_desktop.c
+ *  @file     compicc.c
  *
  *  @brief    a compiz desktop colour management plug-in
  *
@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
-              2009 (C) Kai-Uwe Behrmann
+              2009-2010 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -663,6 +663,7 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
                                        int                 screen,
                                        int                 init )
 {
+  PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
   char * icc_profile_atom = calloc( 1024, sizeof(char) ),
@@ -672,13 +673,13 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
   oyPointer source;
   oyPointer target;
   unsigned long source_n = 0, target_n = 0;
+  int updated_net_color_desktop_atom = 0;
 
   snprintf( num, 12, "%d", (int)screen );
   snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
   snprintf( icc_colour_server_profile_atom, 1024, OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
-
 
   a = XInternAtom(s->display->display, icc_profile_atom, False);
   da = XInternAtom(s->display->display, icc_colour_server_profile_atom, False);
@@ -703,6 +704,13 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
     /* copy the real device atom */
     source = fetchProperty( s->display->display, root, source_atom, XA_CARDINAL,
                             &source_n, False);
+
+    /* _NET_COLOR_DESKTOP atom is set before any _ICC_PROFILE(_xxx) changes. */
+    if(init)
+    {
+      updateNetColorDesktopAtom( s, ps, 2 );
+      updated_net_color_desktop_atom = 1;
+    }
     changeProperty ( s->display->display,
                      target_atom, XA_CARDINAL,
                      source, source_n );
@@ -737,6 +745,11 @@ static void    setupICCprofileAtoms  ( CompScreen        * s,
 
       source = oyProfile_GetMem( screen_document_profile, &size, 0, malloc );
       source_n = size;
+      if(!updated_net_color_desktop_atom)
+      {
+        updateNetColorDesktopAtom( s, ps, 2 );
+        updated_net_color_desktop_atom = 1;
+      }
       changeProperty ( s->display->display,
                        source_atom, XA_CARDINAL,
                        source, source_n );
@@ -1083,9 +1096,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     int all = 1;
     forEachWindowOnScreen( s, damageWindow, &all );
   } END_CLOCK
-
-  if(init)
-    updateNetColorDesktopAtom( s, ps, 2 );
 }
 
 /**
