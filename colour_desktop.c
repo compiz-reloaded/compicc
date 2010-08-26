@@ -33,7 +33,7 @@
 
 #include <assert.h>
 #include <math.h>     // floor()
-#include <string.h>   // strdup()
+#include <string.h>   // http://www.opengroup.org/onlinepubs/009695399/functions/strdup.html
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>   // getpid()
@@ -92,6 +92,9 @@ typedef CompBool (*dispatchObjectProc) (CompPlugin *plugin, CompObject *object, 
 static int colour_desktop_can = 1;
 /** to be ignored profiles */
 static oyProfiles_s * ignore = 0;
+
+/* last check time */
+static time_t net_color_desktop_last_time = 0;
 
 
 /**
@@ -641,13 +644,19 @@ static void changeProperty           ( Display           * display,
                                        void              * data,
                                        unsigned long       size )
 {
-#ifdef DEBUG
-  fprintf( stderr, DBG_STRING"set %s size %d\n", DBG_ARGS,
-          XGetAtomName( display, target_atom ), size );
+#ifdef DEBUG_
+  fprintf( stderr, DBG_STRING"set %s size %ld\n", DBG_ARGS,
+           XGetAtomName( display, target_atom ), size );
+  int r = 
 #endif
     XChangeProperty( display, RootWindow( display, 0 ),
                      target_atom, type, 8, PropModeReplace,
                      data, size );
+#if defined(DEBUG_)
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                  DBG_STRING "XChangeProperty: %d", DBG_ARGS,
+                  r);
+#endif 
 }
 
 static void    setupICCprofileAtoms  ( CompScreen        * s,
@@ -767,8 +776,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
   int error = 0, t_err = 0;
 
   int size = hasScreenProfile( s, screen, 0 );
-
-  int test = 1;
 
   snprintf( num, 12, "%d", (int)screen );
 
@@ -1334,7 +1341,11 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int i;
 
-  updateNetColorDesktopAtom( s, ps, 0 );
+  /* check every 10 seconds */
+  time_t  cutime;         /* Time since epoch */
+  cutime = time(NULL);    /* current user time */
+  if((cutime - net_color_desktop_last_time > (time_t)10))
+    updateNetColorDesktopAtom( s, ps, 0 );
 
   UNWRAP(ps, s, drawWindow);
   Bool status = (*s->drawWindow) (w, transform, attrib, region, mask);
@@ -1516,11 +1527,14 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 1,
                                 c->offset, c->offset, c->offset, 0.0);
 
-    /* Activate the 3D texture */
-    (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
-    glEnable(GL_TEXTURE_3D);
-    glBindTexture(GL_TEXTURE_3D, c->glTexture);
-    (*s->activeTexture) (GL_TEXTURE0_ARB);
+    if(c->glTexture)
+    {
+      /* Activate the 3D texture */
+      (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
+      glEnable(GL_TEXTURE_3D);
+      glBindTexture(GL_TEXTURE_3D, c->glTexture);
+      (*s->activeTexture) (GL_TEXTURE0_ARB);
+    }
 
     /* Only draw where the stencil value matches the window and output */
     glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
@@ -1540,7 +1554,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
     /* Now draw the window texture */
     UNWRAP(ps, s, drawWindowTexture);
-    if(c->oy_profile)
+    if(c->oy_profile && c->glTexture)
       (*s->drawWindowTexture) (w, texture, &fa, mask);
     else
       /* ignore the shader */
@@ -1640,7 +1654,6 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
 {
   CompDisplay * d = s->display;
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
-  static time_t net_color_desktop_last_time = 0;
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   const char * my_id = "compicc",
@@ -1661,12 +1674,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if(!colour_desktop_can)
     return 1;
 
-  /* check every 10 seconds */
-  if(request == 0 &&
-     (cutime - net_color_desktop_last_time < (time_t)10))
-    return 0;
-
-#if defined(PLUGIN_DEBUG_)
+#if defined(PLUGIN_DEBUG)
   printf( DBG_STRING "net_color_desktop_last_time: %ld/%ld %d\n",
           DBG_ARGS, cutime-net_color_desktop_last_time, cutime, request );
 #endif
@@ -1678,6 +1686,8 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
     status = 3;
     goto clean_updateNetColorDesktopAtom;
   }
+
+  atom_colour_server_name[0] = atom_capabilities_text[0] = '\000';
 
   data = fetchProperty( d->display, RootWindow(d->display,0),
                         pd->netColorDesktop, XA_STRING, &n, False);
@@ -1709,10 +1719,13 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
                     DBG_ARGS, old_atom ? old_atom : "????" );
       } else
       if(atom_time > net_color_desktop_last_time)
+      {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nGiving colour service to _NET_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
      
+        colour_desktop_can = 0;
+      }
     } else
     if(old_atom)
       oyCompLogMessage( d, "compicc", CompLogLevelWarn,
@@ -1755,6 +1768,14 @@ clean_updateNetColorDesktopAtom:
 
   net_color_desktop_last_time = cutime;
 
+  if(colour_desktop_can == 0)
+    for (unsigned long i = 0; i < ps->nCcontexts; ++i)
+    {
+      if(ps->ccontexts[i].glTexture)
+        glDeleteTextures( 1, &ps->ccontexts[i].glTexture );
+      ps->ccontexts[i].glTexture = 0;
+    }
+
   return status;
 }
 
@@ -1789,7 +1810,7 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
 #ifdef HAVE_XRANDR
   int screen = DefaultScreen( s->display->display );
 #endif
-  fprintf( stderr, DBG_STRING"dev %d contexts %d \n", DBG_ARGS,
+  fprintf( stderr, DBG_STRING"dev %d contexts %ld \n", DBG_ARGS,
           s->nOutputDev, ps->nCcontexts );
     
 
