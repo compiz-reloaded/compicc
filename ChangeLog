@@ -1,6 +1,24 @@
+Version 0.8.1
+
+Kai-Uwe Behrmann (11):
+	* [build]: clean better
+	* [conf]: bump version
+	* [build]: switch test variable
+	* [build]: rename registration to compicc
+	* [build]: link with Oyranos libs
+	* [core]: add debug markers
+	* [build]: explicite compicc.xml in spec file
+	* [core]: rename internally to compicc
+	* [core]: hand over through _NET_COLOR_DESKTOP
+	* [build]: rename colour_desktop.c to compicc.c
+	* [core]: set _ICC_PROFILE after _NET_COLOR_DESKTOP
+
 Version 0.8.0
 
 Kai-Uwe Behrmann (2):
 	* [core]: initial commit
 	* [core]: support live monitor connect
+
+The previous ChangeLog can be found in Oyranos git. Search for the
+colour_desktop.c plugin and dont forget the original authors work.
 
