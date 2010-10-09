@@ -217,7 +217,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
 static int     hasScreenProfile      ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
-static void    setupICCprofileAtoms  ( CompScreen        * s,
+static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
 static int     getDeviceProfile      ( CompScreen        * s,
@@ -659,7 +659,7 @@ static void changeProperty           ( Display           * display,
 #endif 
 }
 
-static void    setupICCprofileAtoms  ( CompScreen        * s,
+static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init )
 {
@@ -1073,7 +1073,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
 
     if(ps->ccontexts[i].oy_profile)
     {
-      setupICCprofileAtoms( s, i, set );
+      moveICCprofileAtoms( s, i, set );
       setupColourTables ( s, device, i );
     } else
     {
@@ -1927,7 +1927,7 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
     device = oyConfigs_Get( devices, i );
 
     if(ps->ccontexts[i].oy_profile)
-      setupICCprofileAtoms( s, i, init );
+      moveICCprofileAtoms( s, i, init );
 
     oyConfig_Release( &device );
   }
