@@ -220,6 +220,9 @@ static int     hasScreenProfile      ( CompScreen        * s,
 static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
+static int     cleanScreenProfile    ( CompScreen        * s,
+                                       int                 screen,
+                                       int                 server );
 static int     getDeviceProfile      ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        oyConfig_s        * device,
@@ -227,6 +230,12 @@ static int     getDeviceProfile      ( CompScreen        * s,
 static void    setupColourTables     ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen );
+static void changeProperty           ( Display           * display,
+                                       Atom                target_atom,
+                                       int                 type,
+                                       void              * data,
+                                       unsigned long       size );
+static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool delete);
 
 /**
  *    Private Data Allocation
@@ -638,6 +647,32 @@ static int     hasScreenProfile      ( CompScreen        * s,
   return (int)n;
 }
 
+static int     cleanScreenProfile    ( CompScreen        * s,
+                                       int                 screen,
+                                       int                 server )
+{
+  char num[12];
+  Window root = RootWindow( s->display->display, 0 );
+  char * icc_profile_atom = calloc( 1024, sizeof(char) );
+  Atom a;
+
+  if(!icc_profile_atom) return 0;
+
+  snprintf( num, 12, "%d", (int)screen );
+  if(server)
+  snprintf( icc_profile_atom, 1024, OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s", 
+            screen ? "_" : "", screen ? num : "" );
+  else
+  snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
+            screen ? "_" : "", screen ? num : "" );
+
+
+  a = XInternAtom(s->display->display, icc_profile_atom, False);
+
+  XDeleteProperty( s->display->display, root, a );
+  return (int)0;
+}
+
 static void changeProperty           ( Display           * display,
                                        Atom                target_atom,
                                        int                 type,
@@ -788,7 +823,8 @@ static int     getDeviceProfile      ( CompScreen        * s,
   char num[12];
   int error = 0, t_err = 0;
 
-  int size = hasScreenProfile( s, screen, 0 );
+  int size = hasScreenProfile( s, screen, 0 ),
+      server_profile;
 
   snprintf( num, 12, "%d", (int)screen );
 
@@ -843,6 +879,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
 #if defined(PLUGIN_DEBUG)
     printf(DBG_STRING"found device icc_profile %d\n", DBG_ARGS, o?1:0);
 #endif
+
     if(!output->oy_profile)
     {
       oyOptions_s * options = 0;
@@ -1165,6 +1202,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         char * icc_colour_server_profile_atom = malloc(1024);
         char num[12];
         Atom da;
+        unsigned long n = 0;
 
         if(strlen(atom_name) > strlen(OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"_"))
         sscanf( (const char*)atom_name,
@@ -1179,7 +1217,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
         if(da)
         {
-          unsigned long n = 0;
           char * data = fetchProperty( d->display, RootWindow(d->display,0),
                                        event->xproperty.atom, XA_CARDINAL,
                                        &n, False);
@@ -1242,7 +1279,9 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
         if(icc_colour_server_profile_atom) free(icc_colour_server_profile_atom);
 
-        if(!ignore_profile)
+        if(!ignore_profile &&
+           /* change only existing profiles, ignore removed ones */
+           n)
           updateOutputConfiguration( s, FALSE );
       }
 
