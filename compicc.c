@@ -1168,7 +1168,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   {
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
-#if defined(PLUGIN_DEBUG)
+#if defined(PLUGIN_DEBUG_)
     if (event->xproperty.atom == pd->netColorProfiles ||
         event->xproperty.atom == pd->netColorRegions ||
         event->xproperty.atom == pd->netColorTarget ||
@@ -1723,7 +1723,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if(!colour_desktop_can)
     return 1;
 
-#if defined(PLUGIN_DEBUG)
+#if defined(PLUGIN_DEBUG_)
   printf( DBG_STRING "net_color_desktop_last_time: %ld/%ld %d\n",
           DBG_ARGS, cutime-net_color_desktop_last_time, cutime, request );
 #endif
