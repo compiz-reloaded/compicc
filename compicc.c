@@ -880,6 +880,8 @@ static int     getDeviceProfile      ( CompScreen        * s,
     printf(DBG_STRING"found device icc_profile %d\n", DBG_ARGS, o?1:0);
 #endif
 
+    oyProfile_Release( &output->oy_profile );
+
     if(!output->oy_profile)
     {
       oyOptions_s * options = 0;
