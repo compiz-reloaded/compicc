@@ -1089,7 +1089,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int error = 0,
       n,
-      set = 1;
+      set = 1, screen;
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
@@ -1099,6 +1099,56 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   {
     START_CLOCK("freeOutput:")
     freeOutput(ps); END_CLOCK
+
+    /* get number of connected devices */
+    error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
+    n = oyConfigs_Count( devices );
+    oyConfigs_Release( &devices );
+
+    /** Monitor hotplugs can easily mess up the ICC profile to device assigment.
+     *  So first we erase the _ICC_PROFILE(_xxx) to get a clean state.
+     *  We setup the EDID atoms and ICC profiles new.
+     *  The ICC profiles are moved to the right places through the 
+     *  PropertyChange events recieved by the colour server.
+     */
+
+    /* refresh EDID */
+#if defined(PLUGIN_DEBUG)
+    printf( DBG_STRING "send edid refresh\n", DBG_ARGS );
+#endif
+    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
+                                   "list", OY_CREATE_NEW );
+    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
+                                   "refresh", OY_CREATE_NEW );
+    int old_oy_debug = oy_debug;
+    oy_debug = 1;
+    error = oyDeviceGet( OY_TYPE_STD, "monitor", ":0.0", options, &device );
+    oy_debug = old_oy_debug;
+    oyConfig_Release( &device );
+    oyOptions_Release( &options );
+
+    for(screen = 0; screen < n; ++screen)
+    {
+      int server_profile = 0;
+      if(hasScreenProfile( s, screen, server_profile ))
+      {
+        cleanScreenProfile( s, screen, server_profile );
+        oyProfile_s * p = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+
+        /* make shure the profile is ignored */
+        oyProfiles_MoveIn( ignore, &p, -1 );
+#if defined(PLUGIN_DEBUG)
+        printf( DBG_STRING "set (%d) and mark (%d)\n", DBG_ARGS,
+                hasScreenProfile( s, screen, server_profile ),
+                oyProfiles_Count( ignore ) );
+#endif
+      }
+      server_profile = 1;
+      if(hasScreenProfile( s, screen, server_profile ))
+      {
+        cleanScreenProfile( s, screen, server_profile );
+      }
+    }
   }
 
   /* obtain device informations, including geometry and ICC profiles
