@@ -762,19 +762,22 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       updateNetColorDesktopAtom( s, ps, 2 );
       updated_net_color_desktop_atom = 1;
     }
-    changeProperty ( s->display->display,
-                     target_atom, XA_CARDINAL,
-                     source, source_n );
+    if(source_n)
+    {
+      changeProperty ( s->display->display,
+                       target_atom, XA_CARDINAL,
+                       source, source_n );
 #if defined(PLUGIN_DEBUG)
-    if(init)
-      fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
-              icc_profile_atom,
-              icc_colour_server_profile_atom, (int)source_n );
-    else
-      fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
-              icc_colour_server_profile_atom,
-              icc_profile_atom, (int)source_n );
+      if(init)
+        fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
+                 icc_profile_atom,
+                 icc_colour_server_profile_atom, (int)source_n );
+      else
+        fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
+                 icc_colour_server_profile_atom,
+                 icc_profile_atom, (int)source_n );
 #endif
+    }
     XFree( source );
     source = 0; source_n = 0;
 
@@ -789,26 +792,35 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
         oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                           DBG_STRING"Could not get oyASSUMED_WEB", DBG_ARGS);
 
-      if(!ignore) ignore = oyProfiles_New(0);
-      oyProfile_s * p = oyProfile_Copy( screen_document_profile, 0 );
       /* make shure the profile is ignored */
-      oyProfiles_MoveIn( ignore, &p, -1 );
 
       source = oyProfile_GetMem( screen_document_profile, &size, 0, malloc );
       source_n = size;
+
+      /* oyDeviceGetProfile() might setup _ICC_PROFILE. This causes a according
+       * property event. _ICC_PROFILE will be set to oyASSUMED_WEB.
+       * We ignore this event. */
+      if(source_n)
+      {
+        oyProfile_s * p = oyProfile_Copy( screen_document_profile, 0 );
+        oyProfiles_MoveIn( ignore, &p, -1 );
+      }
+
       if(!updated_net_color_desktop_atom)
       {
         updateNetColorDesktopAtom( s, ps, 2 );
         updated_net_color_desktop_atom = 1;
       }
-      changeProperty ( s->display->display,
-                       source_atom, XA_CARDINAL,
-                       source, source_n );
+      if(source_n)
+      {
+        changeProperty ( s->display->display,
+                         source_atom, XA_CARDINAL,
+                         source, source_n );
 #if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING "set %s %d and mark (%d)\n", DBG_ARGS,
-              icc_profile_atom, (int)source_n, oyProfiles_Count( ignore ) );
+        printf( DBG_STRING "set %s %d and mark (%d)\n", DBG_ARGS,
+                icc_profile_atom, (int)source_n, oyProfiles_Count( ignore ) );
 #endif
-
+      }
       oyProfile_Release( &screen_document_profile );
       if(source) free( source ); source = 0;
     } else
