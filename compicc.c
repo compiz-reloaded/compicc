@@ -669,6 +669,22 @@ static int     cleanScreenProfile    ( CompScreen        * s,
 
   a = XInternAtom(s->display->display, icc_profile_atom, False);
 
+  XFlush( s->display->display );
+#if defined(DEBUG)
+  Atom actual;
+  int format;
+  unsigned long left, n = 0;
+  unsigned char *data;
+
+
+  int result = XGetWindowProperty( s->display->display, root, a,
+                     0, ~0, 0, XA_CARDINAL, &actual, &format, &n, &left, &data);
+  if(left && data)
+    XFree(data);
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                  DBG_STRING "XDeleteProperty: %s(%d)", DBG_ARGS,
+                  icc_profile_atom, left+n);
+#endif 
   XDeleteProperty( s->display->display, root, a );
   return (int)0;
 }
