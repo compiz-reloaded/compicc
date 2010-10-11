@@ -28,8 +28,9 @@ Dependencies:
     libxfixes-dev
 
 Building:
-    $ configure
+    $ ./configure
     $ make
     $ make install
 
-
+    for a local build use:
+    $ ./configure --plugindir=$HOME/.compiz/plugins --icondir=$HOME/.local/share/icons --regdir=$HOME/.compiz/metadata

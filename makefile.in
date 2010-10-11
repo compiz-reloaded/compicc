@@ -174,15 +174,15 @@ $(SRCDIR)/$(POT_FILE):
 # the copy part for this directory level
 install_bin:	all
 	echo Installing binaries ...
-	mkdir -p $(DESTDIR)$(libdir)
+	mkdir -p $(DESTDIR)$(plugindir)
 	for lib in $(LIBRARIES); do \
 	   test -f lib$${lib}$(SO).$(VERSION)$(LIBEXT) && \
 		($(INSTALL) -m 755 lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
-		$(DESTDIR)$(libdir)/lib$${lib}$(SO)$(LIBEXT) \
+		$(DESTDIR)$(plugindir)/lib$${lib}$(SO)$(LIBEXT) \
 		); \
 	   if [ "$(STATIC)" = "" ]; then test -f lib$${lib}.a && \
-		($(INSTALL) -m 644 lib$${lib}.a $(DESTDIR)$(libdir);\
-		$(RANLIB) $(DESTDIR)$(libdir)/lib$${lib}.a \
+		($(INSTALL) -m 644 lib$${lib}.a $(DESTDIR)$(plugindir);\
+		$(RANLIB) $(DESTDIR)$(plugindir)/lib$${lib}.a \
 		) || echo ""; \
            fi; \
 	done
@@ -196,9 +196,9 @@ install-main:	install_bin install_mime install_linguas
 
 
 install_mime:
-	echo register into $(DESTDIR)$(datadir)/compiz ...
-	mkdir -p $(DESTDIR)$(datadir)/compiz/
-	$(INSTALL) -m 644 $(SRCDIR)/$(MIME_TYPES) $(DESTDIR)$(datadir)/compiz/
+	echo register into $(DESTDIR)$(regdir) ...
+	mkdir -p $(DESTDIR)$(regdir)
+	$(INSTALL) -m 644 $(SRCDIR)/$(MIME_TYPES) $(DESTDIR)$(regdir)
 	echo adding icons to $(DESTDIR)$(icondir) ...
 	mkdir -p $(DESTDIR)$(icondir)
 	$(INSTALL) -m 644 $(SRCDIR)/$(ICONS) $(DESTDIR)$(icondir)/$(ICONS)
@@ -250,16 +250,16 @@ deb:	dist
 	echo ... $@ done
 
 # remove everything previously installed
-uninstall:	uninstall_bin uninstall_linguas
+uninstall:	uninstall_bin uninstall_mime uninstall_linguas
 	echo ... $@ done
 
 uninstall_bin:
 	echo Uninstalling binaries ...
 	for lib in $(LIBRARIES); do \
-	    $(RM) $(DESTDIR)$(libdir)/lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
-	          $(DESTDIR)$(libdir)/lib$${lib}$(SO).$(VERSION_A)$(LIBEXT) \
-	          $(DESTDIR)$(libdir)/lib$${lib}$(SO)$(LIBEXT) \
-	          $(DESTDIR)$(libdir)/lib$${lib}.a; \
+	    $(RM) $(DESTDIR)$(plugindir)/lib$${lib}$(SO).$(VERSION)$(LIBEXT) \
+	          $(DESTDIR)$(plugindir)/lib$${lib}$(SO).$(VERSION_A)$(LIBEXT) \
+	          $(DESTDIR)$(plugindir)/lib$${lib}$(SO)$(LIBEXT) \
+	          $(DESTDIR)$(plugindir)/lib$${lib}.a; \
 	done
 	echo ... done uninstalling binaries
 	
@@ -267,7 +267,7 @@ uninstall_bin:
 uninstall_mime:
 	echo uninstalling mime types from $(DESTDIR)$(datadir)/mime/packages ...
 	for mime in $(MIME_TYPES); do \
-	  $(RM) $(DESTDIR)$(datadir)/mime/packages/$${mime}; \
+	  $(RM) $(DESTDIR)$(regdir)/$${mime}; \
 	done
 	echo removing icons from $(DESTDIR)$(icondir) ...
 	$(RM) $(DESTDIR)$(icondir)/$(ICONS)

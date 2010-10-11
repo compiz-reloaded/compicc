@@ -122,6 +122,10 @@ if [ $# -gt 0 ]; then
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
       libdir="`echo $1 | sed s/--$switch=//`"
     fi
+    switch=plugindir
+    if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
+      plugindir="`echo $1 | sed s/--$switch=//`"
+    fi
     switch=includedir
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
       includedir="`echo $1 | sed s/--$switch=//`"
@@ -130,9 +134,13 @@ if [ $# -gt 0 ]; then
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
       datadir="`echo $1 | sed s/--$switch=//`"
     fi
+    switch=regdir
+    if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
+      regdir="`echo $1 | sed s/--$switch=//`"
+    fi
     switch=icondir
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
-      datadir="`echo $1 | sed s/--$switch=//`"
+      icondir="`echo $1 | sed s/--$switch=//`"
     fi
     switch=mandir
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
@@ -205,9 +213,11 @@ test -n "$INFOECHO" && $INFOECHO "   --prefix=[/usr/local]                packag
 test -n "$INFOECHO" && $INFOECHO "   --exec-prefix=[\$prefix]              package exec-prefix"
 test -n "$INFOECHO" && $INFOECHO "   --bindir=[\$exec-prefix/bin]          binary installation path"
 test -n "$INFOECHO" && $INFOECHO "   --sbindir=[\$exec-prefix/sbin]        super user binary installation path"
-test -n "$INFOECHO" && $INFOECHO "   --libdir=[\$exec-prefix/lib]          main library installation path (+= /compiz)"
+test -n "$INFOECHO" && $INFOECHO "   --libdir=[\$exec-prefix/lib(64)]      main library installation path"
+test -n "$INFOECHO" && $INFOECHO "   --plugindir=[\$libdir/compiz]         plugin path"
 test -n "$INFOECHO" && $INFOECHO "   --includedir=[\$prefix/include]       include file installation"
 test -n "$INFOECHO" && $INFOECHO "   --datadir=[\$prefix/data]             application data base path"
+test -n "$INFOECHO" && $INFOECHO "   --regdir=[\$datadir/compiz]           plugin registration XML"
 test -n "$INFOECHO" && $INFOECHO "   --icondir=[\$datadir/ccsm/icons/hicolor/scalable/apps/]             icon for ccsm"
 test -n "$INFOECHO" && $INFOECHO "   --mandir=[\$datadir/man]              manual installation path"
 test -n "$INFOECHO" && $INFOECHO ""
@@ -510,11 +520,17 @@ fi
 if [ -z "$libdir" ]; then
   libdir="$exec_prefix/$LIBDIR"
 fi
+if [ -z "$plugindir" ]; then
+  plugindir="$libdir/compiz"
+fi
 if [ -z "$includedir" ]; then
   includedir="$prefix/include"
 fi
 if [ -z "$datadir" ]; then
   datadir="$prefix/share"
+fi
+if [ -z "$regdir" ]; then
+  regdir="$datadir/compiz"
 fi
 if [ -z "$icondir" ]; then
   icondir="$prefix/share/ccsm/icons/hicolor/scalable/apps/"
@@ -522,7 +538,8 @@ fi
 if [ -z "$mandir" ]; then
   mandir="$datadir/man"
 fi
-export prefix exec_prefix bindir sbindir libdir includedir datadir mandir
+export prefix exec_prefix bindir sbindir libdir plugindir includedir datadir
+export regdir mandir
 export debug static verbose fltkconfig
 
 PATH=$bindir:$PATH
@@ -864,9 +881,15 @@ if [ -n "$ECHO" ]; then
   test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
   echo_="libdir          =       $libdir"
   test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
+  echo_="plugindir       =       $plugindir"
+  test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
   echo_="includedir      =       $includedir"
   test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
   echo_="datadir         =       $datadir"
+  test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
+  echo_="regdir          =       $regdir"
+  test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
+  echo_="icondir         =       $icondir"
   test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
   echo_="mandir          =       $mandir"
   test -n "$ECHO" && $ECHO $e "$echo_" >> $CONF_LOG; test -n "$INFOECHO" && $INFOECHO "$echo_"
@@ -881,10 +904,12 @@ test -n "$ECHO" && $ECHO "prefix=$prefix" >> $CONF
 test -n "$ECHO" && $ECHO "exec_prefix=$exec_prefix" >> $CONF
 test -n "$ECHO" && $ECHO "bindir=$bindir" >> $CONF
 test -n "$ECHO" && $ECHO "sbindir=$sbindir" >> $CONF
-test -n "$ECHO" && $ECHO "libdir=$libdir/compiz" >> $CONF
+test -n "$ECHO" && $ECHO "libdir=$libdir" >> $CONF
+test -n "$ECHO" && $ECHO "plugindir=$plugindir" >> $CONF
 test -n "$ECHO" && $ECHO "includedir=$includedir" >> $CONF
 test -n "$ECHO" && $ECHO "dyld_libdir=$dyld_libdir" >> $CONF
 test -n "$ECHO" && $ECHO "datadir=$datadir" >> $CONF
+test -n "$ECHO" && $ECHO "regdir=$regdir" >> $CONF
 test -n "$ECHO" && $ECHO "icondir=$icondir" >> $CONF
 test -n "$ECHO" && $ECHO "mandir=$mandir" >> $CONF
 test -n "$ECHO" && $ECHO "" >> $CONF
