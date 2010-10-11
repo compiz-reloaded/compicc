@@ -1,3 +1,22 @@
+Version 0.8.2
+
+Kai-Uwe Behrmann (15):
+	* [docu]: update ChangeLog and README
+	* [conf]: bump version
+	* [build]: omit make uninstall during install
+	* [core]: update to libXcm-0.3.0
+	* [build]: update to RPM spec
+	* [core]: rename ICC profile setup function
+	* [core]: ignore removed _ICC_PROFILE(_xxx) atoms
+	* [core]: reduce net-color-desktop messages
+	* [core]: release oy_profile during init
+	* [core]: debug message from cleanScreenProfile()
+	* [core]: fix moving of atoms without size
+	* [core]: support dynamic monitor hotpluging
+	* [core]: add more verbosity to debug messages
+	* [core]: init ignore profiles
+	* [core]: skip sRGB in _ICC_PROFILE(_xxx)
+
 Version 0.8.1
 
 Kai-Uwe Behrmann (11):
