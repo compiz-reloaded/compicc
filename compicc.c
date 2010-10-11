@@ -935,7 +935,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
       {
         oyProfile_s * p = oyProfile_FromStd( oyASSUMED_WEB, 0 );
 
-        if(!ignore) ignore = oyProfiles_New(0);
         /* make shure the profile is ignored */
         oyProfiles_MoveIn( ignore, &p, -1 );
 #if defined(PLUGIN_DEBUG)
@@ -2087,6 +2086,7 @@ static CompBool pluginInit(CompPlugin *p)
   if (corePrivateIndex < 0)
     return FALSE;
 #endif
+  if(!ignore) ignore = oyProfiles_New(0);
   return TRUE;
 }
 
