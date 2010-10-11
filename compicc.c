@@ -851,8 +851,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
   char num[12];
   int error = 0, t_err = 0;
 
-  int size = hasScreenProfile( s, screen, 0 ),
-      server_profile;
+  int size = hasScreenProfile( s, screen, 0 );
 
   snprintf( num, 12, "%d", (int)screen );
 
@@ -922,15 +921,16 @@ static int     getDeviceProfile      ( CompScreen        * s,
       t_err = oyDeviceGetProfile( device, options, &output->oy_profile );
       oyOptions_Release( &options );
 #if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING"found net icc_profile 0x%lx %s %d 0x%lx\n", DBG_ARGS,
+      printf( DBG_STRING"found net icc_profile 0x%lx %s %d 0x%lx %s\n",DBG_ARGS,
               (intptr_t)output->oy_profile,
               oyProfile_GetFileName(output->oy_profile, -1),
-              t_err, (intptr_t)output);
+              t_err, (intptr_t)output,
+              hasScreenProfile( s, screen, 0 ) ? "uploaded" : "" );
 #endif
 
-      /* oyDeviceGetProfile() might setup _ICC_PROFILE. This causes a according
-       * property event. _ICC_PROFILE will be set to oyASSUMED_WEB.
-       * We ignore this event. */
+      /* Assumedly the PropertyChange event will come once sRGB is set.
+       * So we register the sRGB in ignore here already.
+       * Its tricky. */
       if(!size)
       {
         oyProfile_s * p = oyProfile_FromStd( oyASSUMED_WEB, 0 );
@@ -938,6 +938,10 @@ static int     getDeviceProfile      ( CompScreen        * s,
         if(!ignore) ignore = oyProfiles_New(0);
         /* make shure the profile is ignored */
         oyProfiles_MoveIn( ignore, &p, -1 );
+#if defined(PLUGIN_DEBUG)
+        printf( DBG_STRING "set (%d) and mark (%d)\n", DBG_ARGS,
+                hasScreenProfile( s, screen, 0 ), oyProfiles_Count( ignore ) );
+#endif
       }
     }
 
@@ -1205,8 +1209,8 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
 
 #if defined(PLUGIN_DEBUG)
   oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "Updated screen outputs, %d total  (%d)",
-                  DBG_ARGS, ps->nCcontexts, init);
+                  DBG_STRING "Updated screen outputs, %d total  %s",
+                  DBG_ARGS, ps->nCcontexts, init?"init":"");
 #endif
   START_CLOCK("damageWindow(s)")
   {
