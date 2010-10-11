@@ -90,8 +90,6 @@ typedef CompBool (*dispatchObjectProc) (CompPlugin *plugin, CompObject *object, 
 
 /** Be active once and then not again. */
 static int colour_desktop_can = 1;
-/** to be ignored profiles */
-static oyProfiles_s * ignore = 0;
 
 /* last check time */
 static time_t net_color_desktop_last_time = 0;
@@ -682,8 +680,8 @@ static int     cleanScreenProfile    ( CompScreen        * s,
   if(left && data)
     XFree(data);
   oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "XDeleteProperty: %s(%d)", DBG_ARGS,
-                  icc_profile_atom, left+n);
+                  DBG_STRING "%d XDeleteProperty: %s(%d)", DBG_ARGS,
+                  result, icc_profile_atom, left+n);
 #endif 
   XDeleteProperty( s->display->display, root, a );
   return (int)0;
@@ -797,15 +795,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       source = oyProfile_GetMem( screen_document_profile, &size, 0, malloc );
       source_n = size;
 
-      /* oyDeviceGetProfile() might setup _ICC_PROFILE. This causes a according
-       * property event. _ICC_PROFILE will be set to oyASSUMED_WEB.
-       * We ignore this event. */
-      if(source_n)
-      {
-        oyProfile_s * p = oyProfile_Copy( screen_document_profile, 0 );
-        oyProfiles_MoveIn( ignore, &p, -1 );
-      }
-
       if(!updated_net_color_desktop_atom)
       {
         updateNetColorDesktopAtom( s, ps, 2 );
@@ -817,8 +806,8 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                          source_atom, XA_CARDINAL,
                          source, source_n );
 #if defined(PLUGIN_DEBUG)
-        printf( DBG_STRING "set %s %d and mark (%d)\n", DBG_ARGS,
-                icc_profile_atom, (int)source_n, oyProfiles_Count( ignore ) );
+        printf( DBG_STRING "set %s (%d)\n", DBG_ARGS,
+                icc_profile_atom, (int)source_n );
 #endif
       }
       oyProfile_Release( &screen_document_profile );
@@ -850,8 +839,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
   const char * device_name = 0;
   char num[12];
   int error = 0, t_err = 0;
-
-  int size = hasScreenProfile( s, screen, 0 );
 
   snprintf( num, 12, "%d", (int)screen );
 
@@ -927,21 +914,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
               t_err, (intptr_t)output,
               hasScreenProfile( s, screen, 0 ) ? "uploaded" : "" );
 #endif
-
-      /* Assumedly the PropertyChange event will come once sRGB is set.
-       * So we register the sRGB in ignore here already.
-       * Its tricky. */
-      if(!size)
-      {
-        oyProfile_s * p = oyProfile_FromStd( oyASSUMED_WEB, 0 );
-
-        /* make shure the profile is ignored */
-        oyProfiles_MoveIn( ignore, &p, -1 );
-#if defined(PLUGIN_DEBUG)
-        printf( DBG_STRING "set (%d) and mark (%d)\n", DBG_ARGS,
-                hasScreenProfile( s, screen, 0 ), oyProfiles_Count( ignore ) );
-#endif
-      }
     }
 
     if(output->oy_profile)
@@ -1136,15 +1108,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
       if(hasScreenProfile( s, screen, server_profile ))
       {
         cleanScreenProfile( s, screen, server_profile );
-        oyProfile_s * p = oyProfile_FromStd( oyASSUMED_WEB, 0 );
-
-        /* make shure the profile is ignored */
-        oyProfiles_MoveIn( ignore, &p, -1 );
-#if defined(PLUGIN_DEBUG)
-        printf( DBG_STRING "set (%d) and mark (%d)\n", DBG_ARGS,
-                hasScreenProfile( s, screen, server_profile ),
-                oyProfiles_Count( ignore ) );
-#endif
       }
       server_profile = 1;
       if(hasScreenProfile( s, screen, server_profile ))
@@ -1306,30 +1269,24 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
           if(data && n)
           {
             const char * tmp = 0;
-            int pn = oyProfiles_Count( ignore ),
-                i;
             oyProfile_s * sp = oyProfile_FromMem( n, data, 0,0 ); /* server p */
+            oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
 
-            /* Ignore to be ignored profiles, which are set from the 
-             * colourserver itself. */
-            for(i = pn-1; i >= 0; --i)
+            /* The distinction of sRGB profiles set by the server and ones
+             * coming from outside the colour server is rather fragile.
+             * So we ignore any sRGB profiles set into _ICC_PROFILE(_xxx).
+             * The correct way to omit colour correction is to tag window
+             * regions. As a last resort the colour server can be switched off.
+             */
+            if(oyProfile_Equal( sp, web ))
             {
-              oyProfile_s * p = oyProfiles_Get( ignore, i );
-              if(oyProfile_Equal( sp, p ))
-              {
-                oyProfiles_ReleaseAt( ignore, i );
 #if defined(PLUGIN_DEBUG)
-                tmp = strdup(oyProfile_GetFileName( sp, 0 ));
-                printf( DBG_STRING"found ignore[%d] %s and forget\n",
-                       DBG_ARGS, i, oyProfile_GetFileName( p, 0 ) );
+              printf( DBG_STRING"received sRGB and ignore\n", DBG_ARGS );
 #endif
-                oyProfile_Release( &p );
-                oyProfile_Release( &sp );
-                ignore_profile = 1;
-                break;
-              }
-              oyProfile_Release( &p );
+              oyProfile_Release( &sp );
+              ignore_profile = 1;
             }
+            oyProfile_Release( &web );
 
             if(sp)
             {
@@ -1350,8 +1307,8 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
             if(!tmp) tmp = oyProfile_GetFileName( sp, 0 );
             if(!tmp) tmp = oyProfile_GetText( sp, oyNAME_DESCRIPTION );
             if(!tmp) tmp = "----";
-            printf( DBG_STRING"ignor profiles: %d; %s :%s \"%s\"\n",
-                    DBG_ARGS, oyProfiles_Count( ignore ), ignore_profile?"ignoring":"accept",
+            printf( DBG_STRING"ignor profiles: %s :%s \"%s\"\n",
+                    DBG_ARGS, ignore_profile?"ignoring":"accept",
                     atom_name, (strrchr(tmp, OY_SLASH_C)) ? strrchr(tmp, OY_SLASH_C) + 1 : tmp );
       
 #endif
@@ -2086,7 +2043,6 @@ static CompBool pluginInit(CompPlugin *p)
   if (corePrivateIndex < 0)
     return FALSE;
 #endif
-  if(!ignore) ignore = oyProfiles_New(0);
   return TRUE;
 }
 
