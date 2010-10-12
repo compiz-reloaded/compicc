@@ -27,6 +27,11 @@ Dependencies:
     doxygen
     libxfixes-dev
 
+  Fedora:
+    compiz-devel
+    (nouveau might need mesa-dri-drivers-experimental)
+
+
 Building:
     $ ./configure
     $ make
