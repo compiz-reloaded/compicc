@@ -218,6 +218,7 @@ static int     hasScreenProfile      ( CompScreen        * s,
 static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
+void           cleanDisplayProfiles  ( CompScreen        * s );
 static int     cleanScreenProfile    ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
@@ -1054,26 +1055,14 @@ static void freeOutput( PrivScreen *ps )
   }
 }
 
-/**
- * Called when XRandR output configuration (or properties) change. Fetch
- * output profiles (if available) or fall back to sRGB.
- * Device profiles are obtained from Oyranos only once at beginning.
- */
-static void updateOutputConfiguration(CompScreen *s, CompBool init)
+void cleanDisplayProfiles( CompScreen *s )
 {
-  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int error = 0,
       n,
-      set = 1, screen;
+      screen;
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
-
-  /* clean memory */
-  if(init)
-  {
-    START_CLOCK("freeOutput:")
-    freeOutput(ps); END_CLOCK
 
     /* get number of connected devices */
     error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
@@ -1115,7 +1104,33 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
         cleanScreenProfile( s, screen, server_profile );
       }
     }
+}
+
+/**
+ * Called when XRandR output configuration (or properties) change. Fetch
+ * output profiles (if available) or fall back to sRGB.
+ * Device profiles are obtained from Oyranos only once at beginning.
+ */
+static void updateOutputConfiguration(CompScreen *s, CompBool init)
+{
+  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+  int error = 0,
+      n,
+      set = 1;
+  oyOptions_s * options = 0;
+  oyConfigs_s * devices = 0;
+  oyConfig_s * device = 0;
+
+  /* clean memory */
+  if(init)
+  {
+    START_CLOCK("freeOutput:")
+    freeOutput(ps); END_CLOCK
+    cleanDisplayProfiles( s );
   }
+
+  /* allow Oyranos to see modifications made to the compiz Xlib context */
+  XFlush( s->display->display );
 
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
