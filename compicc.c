@@ -1602,7 +1602,14 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
   for(int i = 0; i < ps->nCcontexts; ++i)
   {
-    /* get the window region */
+    /* draw the texture over the whole monitor to affect wobbly windows */
+    XRectangle * r = &ps->ccontexts[i].xRect;
+    glScissor( r->x, s->height - r->y - r->height, r->width, r->height);
+
+    if(WINDOW_INVISIBLE(w))
+      goto cleanDrawTexture;
+
+    /* get the window region to find zero sized ones */
     PrivColorRegion * window_region = pw->pRegion + pw->nRegions - 1;
     Region tmp = absoluteRegion( w, window_region->xRegion);
     Region screen = XCreateRegion();
@@ -1613,13 +1620,6 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     XIntersectRegion( screen, tmp, intersection );
 
     BOX * b = &intersection->extents;
-
-    GLint width =  b->x2 - b->x1,
-          height = b->y2 - b->y1;
-    glScissor( b->x1, s->height - b->y1 - height, width, height);
-
-    if(WINDOW_INVISIBLE(w))
-      goto cleanDrawTexture;
 
     if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
       goto cleanDrawTexture;
