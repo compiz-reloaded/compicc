@@ -1253,8 +1253,8 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
     /* update for a changing monitor profile */
     } else if(
-           strstr( atom_name, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE) != 0 &&
-           strstr( atom_name, "ICC_PROFILE_IN_X") == 0 )
+           strstr( atom_name, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE) != 0/* &&
+           strstr( atom_name, "ICC_PROFILE_IN_X") == 0*/ )
     {
       if(colour_desktop_can)
       {
@@ -1337,12 +1337,23 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         if(!ignore_profile &&
            /* change only existing profiles, ignore removed ones */
            n)
+        {
+#if defined(PLUGIN_DEBUG)
+          printf( DBG_STRING "!ignore_profile && n(%d) && !update\n", DBG_ARGS,
+                  (int)n );
+#endif
           updateOutputConfiguration( s, FALSE );
+        }
       }
 
     /* update for changing geometry */
     } else if (event->xproperty.atom == pd->netDesktopGeometry)
+    {
+#if defined(PLUGIN_DEBUG)
+      printf( DBG_STRING "received _NET_DESKTOP_GEOMETRY\n", DBG_ARGS );
+#endif
       updateOutputConfiguration(s, TRUE);
+    }
 
     break;
   case ClientMessage:
@@ -1370,7 +1381,12 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         XRROutputChangeNotifyEvent * oce = (XRROutputChangeNotifyEvent*) rrn;
       }*/
 #endif
-      updateOutputConfiguration(s, TRUE);
+      {
+#if defined(PLUGIN_DEBUG)
+        printf( DBG_STRING "received XRRNotify event\n", DBG_ARGS );
+#endif
+        updateOutputConfiguration(s, TRUE);
+      }
     }
 #endif
     break;
