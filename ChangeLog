@@ -1,3 +1,18 @@
+Version 0.8.3
+
+Kai-Uwe Behrmann (11):
+	* [docu]: update ChangeLog
+	* [conf]: bump version
+	* conf]: add --regdir and --plugindir to configure
+	* [conf]: sync test script with Oyranos
+	* [conf]: fail for compiz
+	* [docu]: hint about Fedora package for noveau
+	* [core]: sync X11 and Oyranos contexts
+	* [core]: fix drawing of window borders
+	* [conf]: update date
+	* [core]: ignore ICC_PROFILE_IN_X
+	* [core]: check before calling XDestroyRegion()
+
 Version 0.8.2
 
 Kai-Uwe Behrmann (15):
