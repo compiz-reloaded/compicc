@@ -29,7 +29,7 @@
 #include <X11/extensions/Xrandr.h>
 #endif
 
-#include <compiz-core.h>
+#include <compiz-common.h>
 
 #include <assert.h>
 #include <math.h>     // floor()
@@ -55,6 +55,12 @@
 #else
 #define oyCompLogMessage(disp_, plug_in_name, debug_level, format_, ... ) \
         compLogMessage( plug_in_name, debug_level, format_, __VA_ARGS__ )
+#endif
+
+#if OY_COMPIZ_VERSION < 900
+#include <compiz-core.h>
+#else
+#define CompBool bool
 #endif
 
 /* Uncomment the following line if you want to enable debugging output */

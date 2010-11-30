@@ -32,7 +32,6 @@ MODULE_LDLIBS =	-l$(TARGET) $(lc)
 CHEADERS =
 CFILES = \
 	compicc.c
-
 TEST_CPP = \
 	tests/dl_test.cxx \
 	tests/gettext_test.cxx \
@@ -73,7 +72,7 @@ SOURCES =  \
 # we need these files to generate explicite targets for out of tree builds
 COBJECTS = \
 	$(CFILES:.c=.o) $(CFILESC:.c=.o)
-CPPOBJECTS =
+CPPOBJECTS =	$(CPPFILES)
 CXXOBJECTS =	$(CXXFILES)
 
 OBJECTS = $(CPPFILES:.cpp=.o) $(CXXFILES:.cxx=.o) $(CFILES:.c=.o) $(CFILESC:.c=.o)
