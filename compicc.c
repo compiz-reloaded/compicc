@@ -172,6 +172,7 @@ typedef struct {
   Atom netColorTarget;
   Atom netColorDesktop;
   Atom netDesktopGeometry;
+  Atom netDisplayAdvanced;
 } PrivDisplay;
 
 typedef struct {
@@ -961,7 +962,8 @@ static void    setupColourTables     ( CompScreen        * s,
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   PrivColorOutput * output = &ps->ccontexts[screen];
-  int error = 0;
+  CompDisplay * d = s->display;
+  PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   oyConversion_s * cc;
 
   if(!colour_desktop_can)
@@ -972,7 +974,7 @@ static void    setupColourTables     ( CompScreen        * s,
       int flags = 0;
 #if defined(PLUGIN_DEBUG_)  /* expensive lookup */
       const char * tmp = oyProfile_GetFileName( output->oy_profile, 0 );
-      
+
       oyCompLogMessage(s->display, "compicc", CompLogLevelInfo,
              DBG_STRING "Output %s: extracted profile from Oyranos: %s",
              DBG_ARGS, output->name,
@@ -993,6 +995,19 @@ static void    setupColourTables     ( CompScreen        * s,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
       oyOptions_s * options = 0;
+      /* optionally set rendering_intent */
+      {
+      unsigned long nBytes;
+      char * ris = 0;
+      Window root = RootWindow( s->display->display, 0 );
+
+      ris = fetchProperty(s->display->display, root, pd->netDisplayAdvanced, XA_STRING, &nBytes, False);
+      printf("netDisplayAdvanced: %s %lu\n", ris, nBytes);
+      if(ris && nBytes && atoi(ris) > 0)
+        flags = oyOPTIONATTRIBUTE_ADVANCED;
+      if(ris)
+        XFree( ris );
+      }
       END_CLOCK
 
       START_CLOCK("oyConversion_CreateBasicPixels: ")
@@ -1358,6 +1373,12 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       printf( DBG_STRING "received _NET_DESKTOP_GEOMETRY\n", DBG_ARGS );
 #endif
       updateOutputConfiguration(s, TRUE);
+    } else if (event->xproperty.atom == pd->netDisplayAdvanced)
+    {
+#if defined(PLUGIN_DEBUG)
+      printf( DBG_STRING "received _NET_COLOR_DISPLAY_ADVANCED\n", DBG_ARGS );
+#endif
+      updateOutputConfiguration( s, FALSE );
     }
 
     break;
@@ -1929,6 +1950,7 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
   pd->netColorTarget = XInternAtom(d->display, "_NET_COLOR_TARGET", False);
   pd->netColorDesktop = XInternAtom(d->display, "_NET_COLOR_DESKTOP", False);
   pd->netDesktopGeometry = XInternAtom(d->display, "_NET_DESKTOP_GEOMETRY", False);
+  pd->netDisplayAdvanced = XInternAtom(d->display, "_NET_COLOR_DISPLAY_ADVANCED", False);
 
   return TRUE;
 }
