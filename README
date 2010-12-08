@@ -39,3 +39,18 @@ Building:
 
     for a local build use:
     $ ./configure --plugindir=$HOME/.compiz/plugins --icondir=$HOME/.local/share/icons --regdir=$HOME/.compiz/metadata
+
+
+Usage:
+    Advanced settiging can be activated by setting a root window
+    Atom called _NET_COLOR_DISPLAY_ADVANCED to "1". 
+    Setting to "0" will nethertheless update the colour transformations in 
+    CompICC.
+  Example:
+    $ xprop -root -format _NET_COLOR_DISPLAY_ADVANCED 8s -set _NET_COLOR_DISPLAY_ADVANCED  1
+
+    The desktop colour server can apply proofing and out of gamut marking
+    to the whole desktop, except the early colour bind regions, by activating
+    the _NET_COLOR_DISPLAY_ADVANCED atom. This is an very specialised feature. 
+    Applications can be synchronised by the Oyranos settings.
+

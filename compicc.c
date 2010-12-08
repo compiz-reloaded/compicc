@@ -995,7 +995,7 @@ static void    setupColourTables     ( CompScreen        * s,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
       oyOptions_s * options = 0;
-      /* optionally set rendering_intent */
+      /* optionally set advanced options from Oyranos */
       {
       unsigned long nBytes;
       char * ris = 0;
