@@ -969,6 +969,7 @@ static void    setupColourTables     ( CompScreen        * s,
 
     if (output->oy_profile)
     {
+      int flags = 0;
 #if defined(PLUGIN_DEBUG_)  /* expensive lookup */
       const char * tmp = oyProfile_GetFileName( output->oy_profile, 0 );
       
@@ -992,14 +993,12 @@ static void    setupColourTables     ( CompScreen        * s,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
       oyOptions_s * options = 0;
-      /* rendering_high_precission maps to lcms' cmsFLAGS_NOTPRECALC */
-      error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/icc/rendering_high_precission",
-                                     "1", OY_CREATE_NEW );
       END_CLOCK
 
       START_CLOCK("oyConversion_CreateBasicPixels: ")
       cc = oyConversion_CreateBasicPixels( image_in, image_out,
                                                       options, 0 ); END_CLOCK
+      oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, 0);
 
       if (cc == NULL)
       {
