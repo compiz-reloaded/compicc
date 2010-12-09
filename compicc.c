@@ -965,6 +965,7 @@ static void    setupColourTables     ( CompScreen        * s,
   CompDisplay * d = s->display;
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   oyConversion_s * cc;
+  int error = 0;
 
   if(!colour_desktop_can)
     return;
@@ -982,10 +983,18 @@ static void    setupColourTables     ( CompScreen        * s,
 #endif
 
       START_CLOCK("create images")
-      oyProfile_s * src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+      oyProfile_s * src_profile = 0;
       oyProfile_s * dst_profile = output->oy_profile;
+      oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
+
+      src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+
+      if(!src_profile)
+        oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
+             DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
+             DBG_ARGS, output->name );
 
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut, 
@@ -994,7 +1003,6 @@ static void    setupColourTables     ( CompScreen        * s,
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
-      oyOptions_s * options = 0;
       /* optionally set advanced options from Oyranos */
       {
       unsigned long nBytes;
@@ -1002,7 +1010,9 @@ static void    setupColourTables     ( CompScreen        * s,
       Window root = RootWindow( s->display->display, 0 );
 
       ris = fetchProperty(s->display->display, root, pd->netDisplayAdvanced, XA_STRING, &nBytes, False);
-      printf("netDisplayAdvanced: %s %lu\n", ris, nBytes);
+      if(oy_debug)
+        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
+                DBG_ARGS, ris?ris:"", nBytes);
       if(ris && nBytes && atoi(ris) > 0)
         flags = oyOPTIONATTRIBUTE_ADVANCED;
       if(ris)
@@ -1013,8 +1023,6 @@ static void    setupColourTables     ( CompScreen        * s,
       START_CLOCK("oyConversion_CreateBasicPixels: ")
       cc = oyConversion_CreateBasicPixels( image_in, image_out,
                                                       options, 0 ); END_CLOCK
-      oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, 0);
-
       if (cc == NULL)
       {
         oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1022,6 +1030,16 @@ static void    setupColourTables     ( CompScreen        * s,
                       DBG_ARGS, output->name);
         return;
       }
+
+      error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, 0);
+      if(error)
+      {
+        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyConversion_Correct(///icc,%d,0) failed %s",
+                      DBG_ARGS, flags, output->name);
+        return;
+      }
+
 
       START_CLOCK("fill array: ")
       uint16_t in[3];
@@ -1041,10 +1059,23 @@ static void    setupColourTables     ( CompScreen        * s,
       } END_CLOCK
 
       START_CLOCK("oyConversion_RunPixels: ")
-      oyConversion_RunPixels( cc, 0 ); END_CLOCK
+      error = oyConversion_RunPixels( cc, 0 ); END_CLOCK
+      if(error)
+      {
+        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyConversion_RunPixels() error: %d %s",
+                      DBG_ARGS, error, output->name);
+        return;
+      }
 
       START_CLOCK("cdCreateTexture: ")
       cdCreateTexture( output ); END_CLOCK
+
+      if(oy_debug)
+      {
+        oyArray2d_ToPPM_( image_in->pixel_data, "compiz_dbg_in.ppm");
+        oyArray2d_ToPPM_( image_out->pixel_data, "compiz_dbg_out.ppm");
+      }
 
       oyOptions_Release( &options );
       oyImage_Release( &image_in );
