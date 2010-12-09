@@ -966,6 +966,10 @@ static void    setupColourTables     ( CompScreen        * s,
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   oyConversion_s * cc;
   int error = 0;
+  unsigned long nBytes;
+  char * opt = 0;
+  Window root = RootWindow( s->display->display, 0 );
+
 
   if(!colour_desktop_can)
     return;
@@ -982,9 +986,9 @@ static void    setupColourTables     ( CompScreen        * s,
              (strrchr(tmp, OY_SLASH_C)) ? strrchr(tmp, OY_SLASH_C) + 1 : tmp );
 #endif
 
-      START_CLOCK("create images")
-      oyProfile_s * src_profile = 0;
-      oyProfile_s * dst_profile = output->oy_profile;
+      oyProfile_s * src_profile = 0,
+                  * dst_profile = output->oy_profile,
+                  * dl = 0;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
@@ -996,29 +1000,26 @@ static void    setupColourTables     ( CompScreen        * s,
              DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
              DBG_ARGS, output->name );
 
+      /* optionally set advanced options from Oyranos */
+      opt = fetchProperty(s->display->display, root, pd->netDisplayAdvanced, XA_STRING, &nBytes, False);
+      if(oy_debug)
+        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
+                DBG_ARGS, opt?opt:"", nBytes);
+      if(opt && nBytes && atoi(opt) > 0)
+        flags = oyOPTIONATTRIBUTE_ADVANCED;
+      if(opt)
+        XFree( opt ); opt = 0;
+
+      START_CLOCK("create images")
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut, 
                                              pixel_layout, src_profile, 0 );
-      oyProfile_Release( &src_profile );
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
-      /* optionally set advanced options from Oyranos */
-      {
-      unsigned long nBytes;
-      char * ris = 0;
-      Window root = RootWindow( s->display->display, 0 );
-
-      ris = fetchProperty(s->display->display, root, pd->netDisplayAdvanced, XA_STRING, &nBytes, False);
-      if(oy_debug)
-        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
-                DBG_ARGS, ris?ris:"", nBytes);
-      if(ris && nBytes && atoi(ris) > 0)
-        flags = oyOPTIONATTRIBUTE_ADVANCED;
-      if(ris)
-        XFree( ris );
-      }
       END_CLOCK
+
+      oyProfile_Release( &src_profile );
 
       START_CLOCK("oyConversion_CreateBasicPixels: ")
       cc = oyConversion_CreateBasicPixels( image_in, image_out,
