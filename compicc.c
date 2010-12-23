@@ -955,6 +955,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
   return error;
 }
 
+void oyArray2d_ToPPM_( oyStruct_s *, const char * );
 
 static void    setupColourTables     ( CompScreen        * s,
                                        oyConfig_s        * device,
@@ -987,8 +988,7 @@ static void    setupColourTables     ( CompScreen        * s,
 #endif
 
       oyProfile_s * src_profile = 0,
-                  * dst_profile = output->oy_profile,
-                  * dl = 0;
+                  * dst_profile = output->oy_profile;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
