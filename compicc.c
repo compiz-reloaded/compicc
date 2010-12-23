@@ -404,16 +404,13 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   /*else if(ps->function)  should not happen as funcition is statical cached
     destroyFragmentFunction(s, ps->function); */
 
+  /* shaders are programmed using ARB GPU assembly language */
   CompFunctionData *data = createFunctionData();
 
   addFetchOpToFunctionData(data, "output", NULL, getFetchTarget(texture));
 
-  /* needed? */
-  addDataOpToFunctionData(data, "MAD output, output, program.env[%d], program.env[%d];", param, param + 1);
   /* output.rgb means: do not touch alpha */
   addDataOpToFunctionData(data, "TEX output.rgb, output, texture[%d], 3D;", unit);
-  /* needless? */
-  //addColorOpToFunctionData (data, "output", "output");
 
   function = createFragmentFunction(s, "compicc", data);
 
