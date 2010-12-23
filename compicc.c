@@ -415,6 +415,9 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   addDataOpToFunctionData(data, "MUL output.rgb, output.a, output;");
   addDataOpToFunctionData(data, "MUL temp.a, output.a, output.a;");
 
+  /* needed, but why? */
+  addDataOpToFunctionData(data, "MAD output, output, program.env[%d], program.env[%d];", param, param + 1);
+
   /* colour transform through a texture lookup */
   addDataOpToFunctionData(data, "TEX output, output, texture[%d], 3D;", unit);
 
