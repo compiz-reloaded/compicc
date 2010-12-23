@@ -413,15 +413,13 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
 
   /* demultiply alpha */
   addDataOpToFunctionData(data, "MUL output.rgb, output.a, output;");
-  addDataOpToFunctionData(data, "MOV temp.a, output.a;");
   addDataOpToFunctionData(data, "MUL temp.a, output.a, output.a;");
 
   /* output.rgb means: do not touch alpha */
-  addDataOpToFunctionData(data, "TEX output.rgb, output, texture[%d], 3D;", unit);
+  addDataOpToFunctionData(data, "TEX output, output, texture[%d], 3D;", unit);
 
   /* multiply alpha */
-  addDataOpToFunctionData(data, "MUL output.a, temp.a, output;");
-  addDataOpToFunctionData(data, "MUL output.rgb, temp.a, output;");
+  addDataOpToFunctionData(data, "MUL output, temp.a, output;");
 
   addColorOpToFunctionData (data, "output", "output");
 
