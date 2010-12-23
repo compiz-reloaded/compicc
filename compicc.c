@@ -407,10 +407,23 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   /* shaders are programmed using ARB GPU assembly language */
   CompFunctionData *data = createFunctionData();
 
+  addTempHeaderOpToFunctionData(data, "temp");
+
   addFetchOpToFunctionData(data, "output", NULL, getFetchTarget(texture));
+
+  /* demultiply alpha */
+  addDataOpToFunctionData(data, "MUL output.rgb, output.a, output;");
+  addDataOpToFunctionData(data, "MOV temp.a, output.a;");
+  addDataOpToFunctionData(data, "MUL temp.a, output.a, output.a;");
 
   /* output.rgb means: do not touch alpha */
   addDataOpToFunctionData(data, "TEX output.rgb, output, texture[%d], 3D;", unit);
+
+  /* multiply alpha */
+  addDataOpToFunctionData(data, "MUL output.a, temp.a, output;");
+  addDataOpToFunctionData(data, "MUL output.rgb, temp.a, output;");
+
+  addColorOpToFunctionData (data, "output", "output");
 
   function = createFragmentFunction(s, "compicc", data);
 
