@@ -415,7 +415,7 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   addDataOpToFunctionData(data, "MUL output.rgb, output.a, output;");
   addDataOpToFunctionData(data, "MUL temp.a, output.a, output.a;");
 
-  /* output.rgb means: do not touch alpha */
+  /* colour transform through a texture lookup */
   addDataOpToFunctionData(data, "TEX output, output, texture[%d], 3D;", unit);
 
   /* multiply alpha */
