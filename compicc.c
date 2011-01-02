@@ -82,7 +82,7 @@
 
 #define DBG_STRING "\n  %s:%d %s() %.02f "
 #define DBG_ARGS (strrchr(__FILE__,'/') ? strrchr(__FILE__,'/')+1 : __FILE__),__LINE__,__func__,(double)clock()/CLOCKS_PER_SEC
-#if defined(PLUGIN_DEBUG_)
+#if defined(PLUGIN_DEBUG)
 #define START_CLOCK(text) fprintf( stderr, DBG_STRING text " - ", DBG_ARGS );
 #define END_CLOCK         fprintf( stderr, "%.02f\n", (double)clock()/CLOCKS_PER_SEC );
 #else
@@ -226,6 +226,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
 void           cleanDisplayProfiles  ( CompScreen        * s );
+void           cleanDisplayEDID      ( CompScreen        * s );
 static int     cleanScreenProfile    ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
@@ -242,6 +243,7 @@ static void changeProperty           ( Display           * display,
                                        void              * data,
                                        unsigned long       size );
 static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool delete);
+static oyStructList_s * pluginGetPrivatesCache ();
 
 /**
  *    Private Data Allocation
@@ -968,6 +970,8 @@ static int     getDeviceProfile      ( CompScreen        * s,
 
 void oyArray2d_ToPPM_( oyStruct_s *, const char * );
 
+oyStructList_s * colour_table_cache = NULL;
+
 static void    setupColourTables     ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen )
@@ -1023,7 +1027,7 @@ static void    setupColourTables     ( CompScreen        * s,
 
       START_CLOCK("create images")
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
-                                             output->clut, 
+                                             output->clut,
                                              pixel_layout, src_profile, 0 );
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut,
@@ -1052,47 +1056,107 @@ static void    setupColourTables     ( CompScreen        * s,
         return;
       }
 
+      oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
+      oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc", 0 );
 
-      START_CLOCK("fill array: ")
-      uint16_t in[3];
-      for (int r = 0; r < GRIDPOINTS; ++r)
+      uint32_t exact_hash_size = 0;
+      char * hash_text = 0;
+      const char * t = 0;
+      if(icc->core->api4_->oyCMMFilterNode_GetText)
+        hash_text = icc->core->api4_->oyCMMFilterNode_GetText( icc, oyNAME_NICK,
+                                                               malloc );
+      else
       {
-        in[0] = floor((double) r / (GRIDPOINTS - 1) * 65535.0 + 0.5);
-        for (int g = 0; g < GRIDPOINTS; ++g) {
-          in[1] = floor((double) g / (GRIDPOINTS - 1) * 65535.0 + 0.5);
-          for (int b = 0; b < GRIDPOINTS; ++b)
-          {
-            in[2] = floor((double) b / (GRIDPOINTS - 1) * 65535.0 + 0.5);
-            for(int j = 0; j < 3; ++j)
-              /* BGR */
-              output->clut[b][g][r][j] = in[j];
-          }
-        }
-      } END_CLOCK
+        t = oyFilterNode_GetText( icc, oyNAME_NICK );
+        if(t)
+          hash_text = strdup(t);
+      }
+      oyHash_s * entry;
+      oyArray2d_s * clut = NULL;
+      oyStructList_s * cache = pluginGetPrivatesCache();
+      entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
+      clut = (oyArray2d_s*) oyHash_GetPointer_( entry, oyOBJECT_ARRAY2D_S);
+      oyFilterNode_Release( &icc );
+      oyFilterGraph_Release( &cc_graph );
 
-      START_CLOCK("oyConversion_RunPixels: ")
-      error = oyConversion_RunPixels( cc, 0 ); END_CLOCK
-      if(error)
+      if(hash_text)
       {
-        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                      DBG_STRING "oyConversion_RunPixels() error: %d %s",
-                      DBG_ARGS, error, output->name);
-        return;
+        free(hash_text); hash_text = 0;
       }
 
-      START_CLOCK("cdCreateTexture: ")
-      cdCreateTexture( output ); END_CLOCK
+      if(clut)
+        memcpy( output->clut, clut->array2d[0], 
+                sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
+      else
+      {
+        if(oy_debug)
+        {
+          const char * t = "--";
+          oyHash_s * e = oyStructList_Get_(cache, 0);
+          if(entry && entry->entry)
+            t = oyStructTypeToText(entry->entry->type_);
+          printf( DBG_STRING"hash: %s %s cache: 0x%x entry: 0x%x cache[0]:%s\n",
+                  DBG_ARGS, hash_text?hash_text:"", t, cache, entry,
+                  (e&&e->entry)?oyStructTypeToText(e->entry->type_): "--" );
+        }
+
+
+        START_CLOCK("fill array: ")
+        uint16_t in[3];
+        for (int r = 0; r < GRIDPOINTS; ++r)
+        {
+          in[0] = floor((double) r / (GRIDPOINTS - 1) * 65535.0 + 0.5);
+          for (int g = 0; g < GRIDPOINTS; ++g) {
+            in[1] = floor((double) g / (GRIDPOINTS - 1) * 65535.0 + 0.5);
+            for (int b = 0; b < GRIDPOINTS; ++b)
+            {
+              in[2] = floor((double) b / (GRIDPOINTS - 1) * 65535.0 + 0.5);
+              for(int j = 0; j < 3; ++j)
+                /* BGR */
+                output->clut[b][g][r][j] = in[j];
+            }
+          }
+        } END_CLOCK
+
+        clut = oyArray2d_Create( NULL, GRIDPOINTS*3, GRIDPOINTS*GRIDPOINTS,
+                                 oyUINT16, NULL );
+
+        START_CLOCK("oyConversion_RunPixels: ")
+        error = oyConversion_RunPixels( cc, 0 ); END_CLOCK
+
+        if(error)
+        {
+          oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyConversion_RunPixels() error: %d %s",
+                      DBG_ARGS, error, output->name);
+          return;
+        }
+
+        printf( DBG_STRING "size: %lu\n",
+                  DBG_ARGS, sizeof(clut->array2d[0]) );
+
+        memcpy( clut->array2d[0], output->clut,
+                sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
+
+        oyHash_SetPointer_( entry, (oyStruct_s*) clut );
+        printf( DBG_STRING "size: %d\n",
+                  DBG_ARGS, oyStructList_Count( cache ) );
+      }
 
       if(oy_debug)
       {
         oyArray2d_ToPPM_( image_in->pixel_data, "compiz_dbg_in.ppm");
         oyArray2d_ToPPM_( image_out->pixel_data, "compiz_dbg_out.ppm");
+        oyArray2d_ToPPM_( (oyStruct_s*) clut, "compiz_dbg_clut.ppm");
       }
 
       oyOptions_Release( &options );
       oyImage_Release( &image_in );
       oyImage_Release( &image_out );
       oyConversion_Release( &cc );
+
+      START_CLOCK("cdCreateTexture: ")
+      cdCreateTexture( output ); END_CLOCK
 
     } else {
       oyCompLogMessage( s->display, "compicc", CompLogLevelInfo,
@@ -1118,11 +1182,10 @@ static void freeOutput( PrivScreen *ps )
   }
 }
 
-void cleanDisplayProfiles( CompScreen *s )
+void cleanDisplayEDID( CompScreen *s )
 {
   int error = 0,
-      n,
-      screen;
+      n;
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
@@ -1153,6 +1216,19 @@ void cleanDisplayProfiles( CompScreen *s )
     oy_debug = old_oy_debug;
     oyConfig_Release( &device );
     oyOptions_Release( &options );
+}
+
+void cleanDisplayProfiles( CompScreen *s )
+{
+  int error = 0,
+      n,
+      screen;
+  oyConfigs_s * devices = 0;
+
+    /* get number of connected devices */
+    error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
+    n = oyConfigs_Count( devices );
+    oyConfigs_Release( &devices );
 
     for(screen = 0; screen < n; ++screen)
     {
@@ -1189,6 +1265,11 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   {
     START_CLOCK("freeOutput:")
     freeOutput(ps); END_CLOCK
+#if defined(PLUGIN_DEBUG)
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+               DBG_STRING "call cleanDisplayProfiles() init: %d",
+                    DBG_ARGS, init);
+#endif
     cleanDisplayProfiles( s );
   }
 
@@ -1201,13 +1282,8 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
                                  "list", OY_CREATE_NEW );
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
-  /*error = oyOptions_SetFromText( &options,
-                                 "//" OY_TYPE_STD "/config/display_name",
-                                 DisplayString( s->display->display ),
-                                 OY_CREATE_NEW );*/
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
   n = oyOptions_Count( options );
-  //printf( DBG_STRING "options: %d devices: %d %s\n", DBG_ARGS, n, oyConfigs_Count( devices ) );
   oyOptions_Release( &options );
 
   n = oyConfigs_Count( devices );
@@ -1222,6 +1298,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     ps->nCcontexts = n;
     ps->ccontexts = malloc(ps->nCcontexts * sizeof(PrivColorOutput));
     memset( ps->ccontexts, 0, ps->nCcontexts * sizeof(PrivColorOutput));
+    cleanDisplayEDID( s );
   }
 
   if(colour_desktop_can)
@@ -1277,16 +1354,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   CompScreen * s = findScreenAtDisplay(d, event->xany.window);
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
 
-  /* initialise */
-  if(s && ps && s->nOutputDev != ps->nCcontexts)
-  {
-#if defined(PLUGIN_DEBUG)
-    printf( DBG_STRING "s->nOutputDev %d != ps->nCcontexts %d\n", DBG_ARGS,
-            (int)s->nOutputDev, (int)ps->nCcontexts );
-#endif
-    updateOutputConfiguration( s, TRUE);
-  }
- 
 
   switch (event->type)
   {
@@ -1301,6 +1368,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
            strstr( atom_name, "EDID") != 0)
       printf( DBG_STRING "PropertyNotify: %s\n", DBG_ARGS, atom_name );
 #endif
+
     if (event->xproperty.atom == pd->netColorRegions) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
@@ -1460,6 +1528,19 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 #endif
     break;
   }
+
+  /* initialise */
+  if(s && ps && s->nOutputDev != ps->nCcontexts)
+  {
+#if defined(PLUGIN_DEBUG)
+    char num[12];
+    sprintf(num, "%d", event->type);
+    printf( DBG_STRING "s->nOutputDev %d != ps->nCcontexts %d  %s\n", DBG_ARGS,
+            (int)s->nOutputDev, (int)ps->nCcontexts, atom_name?atom_name:num );
+#endif
+    updateOutputConfiguration( s, TRUE);
+  }
+ 
 }
 
 /**
@@ -2154,7 +2235,7 @@ static CompBool pluginInit(CompPlugin *p)
 }
 
 static oyStructList_s * privates_cache = 0;
-oyStructList_s * pluginGetPrivatesCache ()
+static oyStructList_s * pluginGetPrivatesCache ()
 {
   if(!privates_cache)
     privates_cache = oyStructList_New( 0 );
