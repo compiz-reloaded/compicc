@@ -63,6 +63,10 @@
 #define CompBool bool
 #endif
 
+#if OYRANOS_VERSION < 201
+#define oyConversion_GetGraph( conversion ) oyFilterGraph_FromNode( conversion->input, 0)
+#endif
+
 /* Uncomment the following line if you want to enable debugging output */
 #define PLUGIN_DEBUG 1
 
