@@ -31,6 +31,8 @@ Dependencies:
     compiz-devel
     (nouveau might need mesa-dri-drivers-experimental)
 
+  openSUSE:
+    (nouveau might need http://software.opensuse.org/search?q=Mesa-nouveau3d)
 
 Building:
     $ ./configure
