@@ -442,12 +442,59 @@ if [ -n "$LCMS2" ] && [ $LCMS2 -gt 0 ]; then
 fi
 
 if [ -n "$LRAW" ] && [ $LRAW -gt 0 ]; then
-  name="raw"
-  libname=$name
+  name="libraw"
+  libname=raw
   minversion=0.7
   url="http://www.libraw.org"
   TESTER=$LRAW
   ID=LRAW
+
+  ID_H="$ID"_H
+  ID_LIBS="$ID"_LIBS
+  HAVE_LIB=0
+  version=`pkg-config --modversion $name`
+  pkg-config  --atleast-version=$minversion $name
+  if [ $? = 0 ]; then
+    echo "#define HAVE_$ID 1" >> $CONF_H
+    l=$libname
+    rm -f tests/libtest$EXEC_END
+    $CXX $CXXFLAGS -I$includedir $ROOT_DIR/tests/libraw_test.cxx $LDFLAGS -L$libdir -shared `pkg-config --cflags --libs $name` -o tests/libtest 2>>$CONF_LOG
+    if [ -f tests/libtest$EXEC_END ]; then
+      HAVE_LIB=1
+      echo "#define HAVE_$ID 1" >> $CONF_H
+      echo "$ID = 1" >> $CONF
+      echo "$ID_H = `pkg-config --cflags $name | sed \"$STRIPOPT\"`" >> $CONF
+      echo "$ID_LIBS = `pkg-config --libs $name | sed \"$STRIPOPT\"`" >> $CONF
+      rm tests/libtest$EXEC_END
+    fi
+  fi
+  if [ $HAVE_LIB -eq 1 ]; then
+    if [ "$version" != "" ]; then
+      echo_="$name $version           detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    else
+      echo_="$name                  detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    fi
+  else
+    echo_="command was: $CXX $CXXFLAGS -I$includedir $ROOT_DIR/tests/libraw_test.cxx $LDFLAGS -L$libdir -shared -lraw -o tests/libtest"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    $CXX $CXXFLAGS -I$includedir $ROOT_DIR/tests/libraw_test.cxx $LDFLAGS -L$libdir -shared `pkg-config --cflags --libs $name` -o tests/libtest
+    if [ $TESTER -eq 1 ]; then
+      echo_="!!! ERROR: no or too old $name found, !!!"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      ERROR=1
+    else
+      echo_="    Warning: no or too old $name found,"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      WARNING=1
+    fi
+    echo_="  need at least version $minversion, download: $url"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+  fi
+fi
+
+if [ -n "$EXIV2" ] && [ $EXIV2 -gt 0 ]; then
+  name="exiv2"
+  libname=$name
+  minversion=0.10
+  url="http://www.exiv2.org/"
+  TESTER=$EXIV2
+  ID=EXIV2
 
   ID_H="$ID"_H
   ID_LIBS="$ID"_LIBS
@@ -475,7 +522,7 @@ if [ -n "$LRAW" ] && [ $LRAW -gt 0 ]; then
   fi
   if [ $HAVE_LIB -eq 1 ]; then
     if [ "$version" != "" ]; then
-      echo_="$name $version           detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      echo_="$name $version            detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
     else
       echo_="lib$name                  detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
     fi
@@ -491,35 +538,7 @@ if [ -n "$LRAW" ] && [ $LRAW -gt 0 ]; then
   fi
 fi
 
-if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
-    found=""
-    version=""
-    pc_package=x11
-    if [ -z "$found" ]; then
-      pkg-config  --atleast-version=1.0 $pc_package
-      if [ $? = 0 ]; then
-        found=`pkg-config --cflags $pc_package`
-        version=`pkg-config --modversion $pc_package`
-      fi
-    fi
-    if [ -z "$found" ]; then
-      if [ -f /usr/X11R6/include/X11/Xlib.h ]; then
-        found="-I/usr/X11R6/include"
-      elif [ -f /usr/include/X11/Xlib.h ]; then
-        found="-I/usr/include"
-      elif [ -f $includedir/X11/Xlib.h ]; then
-        found="-I$includedir"
-      fi
-    fi
-    if [ -z "$found" ] && [ $OSUNAME = "Linux" ]; then
-      echo_="X11 header not found in /usr/X11R6/include/X11/Xlib.h or"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
-      echo_="  /usr/include/X11/Xlib.h or"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
-      echo_="  $pc_package.pc"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
-      X11=0
-    fi
-fi
-if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
-  if [ -n "$XCM" ] && [ $XCM -gt 0 ]; then
+if [ -n "$XCM" ] && [ $XCM -gt 0 ]; then
     found=""
     version=""
     pc_package=xcm
@@ -555,8 +574,36 @@ if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
       echo_="X CM not found in"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
       echo_="  $pc_package.pc"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
     fi
-  fi
+fi
 
+if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
+    found=""
+    version=""
+    pc_package=x11
+    if [ -z "$found" ]; then
+      pkg-config  --atleast-version=1.0 $pc_package
+      if [ $? = 0 ]; then
+        found=`pkg-config --cflags $pc_package`
+        version=`pkg-config --modversion $pc_package`
+      fi
+    fi
+    if [ -z "$found" ]; then
+      if [ -f /usr/X11R6/include/X11/Xlib.h ]; then
+        found="-I/usr/X11R6/include"
+      elif [ -f /usr/include/X11/Xlib.h ]; then
+        found="-I/usr/include"
+      elif [ -f $includedir/X11/Xlib.h ]; then
+        found="-I$includedir"
+      fi
+    fi
+    if [ -z "$found" ] && [ $OSUNAME = "Linux" ]; then
+      echo_="X11 header not found in /usr/X11R6/include/X11/Xlib.h or"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      echo_="  /usr/include/X11/Xlib.h or"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      echo_="  $pc_package.pc"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      X11=0
+    fi
+fi
+if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
   if [ -n "$XF86VMODE" ] && [ $XF86VMODE -gt 0 ]; then
     found=""
     version=""
@@ -843,6 +890,11 @@ if [ -n "$FTGL" ] && [ $FTGL -gt 0 ]; then
     echo "FTGL = 1" >> $CONF
     echo "FTGL_H = `pkg-config --cflags ftgl | sed \"$STRIPOPT\"`" >> $CONF
     echo "FTGL_LIBS = `pkg-config --libs ftgl | sed \"$STRIPOPT\"`" >> $CONF
+    pkg-config  --atleast-version=2.1 ftgl
+    if [ $? = 0 ]; then
+      echo "FTGL_INLCUDE_VER = 20100" >> $CONF
+      echo "#define FTGL_INLCUDE_VER 20100" >> $CONF_H
+    fi
   else
     l=ftgl 
     rm -f tests/libtest$EXEC_END
@@ -892,12 +944,12 @@ if [ -n "$FLTK" ] && [ $FLTK -gt 0 ]; then
     fi
     echo "#define HAVE_FLTK 1" >> $CONF_H
     echo "FLTK = 1" >> $CONF
-    echo "FLTK_H = `$fltkconfig --cxxflags | sed \"$STRIPOPT\"`" >> $CONF
-    echo "FLTK_LIBS = `$fltkconfig --use-images --use-gl $fltkldflags | sed \"$STRIPOPT\"`" >> $CONF
+    echo "FLTK_H = `$fltkconfig --cxxflags $fltkflags | sed \"$STRIPOPT\"`" >> $CONF
+    echo "FLTK_LIBS = `$fltkconfig --use-images --use-gl $fltkldflags $fltkflags | sed \"$STRIPOPT\"`" >> $CONF
     echo "fltkconfig = $fltkconfig" >> $CONF
     echo "FLTK = 1" >> $CONF_I18N
-    echo "FLTK_H = `$fltkconfig --cxxflags | sed \"$STRIPOPT\"`" >> $CONF_I18N
-    echo "FLTK_LIBS = `$fltkconfig --use-images --use-gl $fltkldflags | sed \"$STRIPOPT\"`" >> $CONF_I18N
+    echo "FLTK_H = `$fltkconfig --cxxflags $fltkflags | sed \"$STRIPOPT\"`" >> $CONF_I18N
+    echo "FLTK_LIBS = `$fltkconfig --use-images --use-gl $fltkldflags $fltkflags | sed \"$STRIPOPT\"`" >> $CONF_I18N
     echo "fltkconfig = $fltkconfig" >> $CONF_I18N
 
   else
