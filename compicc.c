@@ -1096,11 +1096,13 @@ static void    setupColourTables     ( CompScreen        * s,
         if(oy_debug)
         {
           const char * t = "--";
-          oyHash_s * e = oyStructList_Get_(cache, 0);
+          oyHash_s * e = (oyHash_s*) oyStructList_Get_(cache, 0);
           if(entry && entry->entry)
             t = oyStructTypeToText(entry->entry->type_);
-          printf( DBG_STRING"hash: %s %s cache: 0x%x entry: 0x%x cache[0]:%s\n",
-                  DBG_ARGS, hash_text?hash_text:"", t, cache, entry,
+          printf( DBG_STRING
+                  "hash: %s %s cache: 0x%lx entry: 0x%lx cache[0]:%s\n",
+                  DBG_ARGS, hash_text?hash_text:"", t,
+                  (unsigned long)cache, (unsigned long)entry,
                   (e&&e->entry)?oyStructTypeToText(e->entry->type_): "--" );
         }
 
