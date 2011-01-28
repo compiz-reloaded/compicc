@@ -1079,7 +1079,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyArray2d_s * clut = NULL;
       oyStructList_s * cache = pluginGetPrivatesCache();
       entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
-      clut = (oyArray2d_s*) oyHash_GetPointer_( entry, oyOBJECT_ARRAY2D_S);
+      clut = (oyArray2d_s*) oyHash_GetPointer( entry, oyOBJECT_ARRAY2D_S);
       oyFilterNode_Release( &icc );
       oyFilterGraph_Release( &cc_graph );
 
@@ -1096,12 +1096,14 @@ static void    setupColourTables     ( CompScreen        * s,
         if(oy_debug)
         {
           const char * t = "--";
-          oyHash_s * e = oyStructList_Get_(cache, 0);
-          if(entry && entry->entry)
-            t = oyStructTypeToText(entry->entry->type_);
-          printf( DBG_STRING"hash: %s %s cache: 0x%x entry: 0x%x cache[0]:%s\n",
-                  DBG_ARGS, hash_text?hash_text:"", t, cache, entry,
-                  (e&&e->entry)?oyStructTypeToText(e->entry->type_): "--" );
+          oyHash_s * e = (oyHash_s*) oyStructList_Get_(cache, 0);
+          if(entry)
+            t = oyStructTypeToText(oyHash_GetType(entry));
+          printf( DBG_STRING
+                  "hash: %s %s cache: 0x%lx entry: 0x%lx cache[0]:%s\n",
+                  DBG_ARGS, hash_text?hash_text:"", t,
+                  (unsigned long)cache, (unsigned long)entry,
+                  e ? oyStructTypeToText(oyHash_GetType(e)) : "--" );
         }
 
 
@@ -1142,7 +1144,7 @@ static void    setupColourTables     ( CompScreen        * s,
         memcpy( clut->array2d[0], output->clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
-        oyHash_SetPointer_( entry, (oyStruct_s*) clut );
+        oyHash_SetPointer( entry, (oyStruct_s*) clut );
         printf( DBG_STRING "size: %d\n",
                   DBG_ARGS, oyStructList_Count( cache ) );
       }
