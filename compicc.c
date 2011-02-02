@@ -2015,9 +2015,13 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
                     DBG_ARGS, old_atom ? old_atom : "????" );
   }
 
+  /*  Do we really colour correct?
+   *  This is only a guess.
+   */
   int attached_profiles = 0;
   for(int i = 0; i < ps->nCcontexts; ++i)
-    attached_profiles += ps->ccontexts[i].oy_profile ? 1 : 0;
+    attached_profiles += ps->ccontexts[i].oy_profile &&
+                         ps->ccontexts[i].glTexture;
 
   if( (atom_time + 10) < net_color_desktop_last_time ||
       request == 2 )
