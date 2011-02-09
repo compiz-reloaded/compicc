@@ -1365,7 +1365,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   {
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
-#if defined(PLUGIN_DEBUG_)
+#if defined(PLUGIN_DEBUG)
     if (event->xproperty.atom == pd->netColorProfiles ||
         event->xproperty.atom == pd->netColorRegions ||
         event->xproperty.atom == pd->netColorTarget ||
@@ -2020,8 +2020,11 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
    */
   int attached_profiles = 0;
   for(int i = 0; i < ps->nCcontexts; ++i)
-    attached_profiles += ps->ccontexts[i].oy_profile &&
-                         ps->ccontexts[i].glTexture;
+    attached_profiles += ps->ccontexts[i].oy_profile ? 1:0;
+
+  int transform_n = 0;
+  for(int i = 0; i < ps->nCcontexts; ++i)
+    transform_n += ps->ccontexts[i].glTexture ? 1:0;
 
   if( (atom_time + 10) < net_color_desktop_last_time ||
       request == 2 )
@@ -2029,7 +2032,10 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
     char * atom_text = malloc(1024);
     if(!atom_text) goto clean_updateNetColorDesktopAtom;
     sprintf( atom_text, "%d %ld %s %s",
-             (int)pid, (long)cutime, my_capabilities, my_id );
+             (int)pid, (long)cutime,
+             /* say if we can convert, otherwise give only the version number */
+             transform_n ? my_capabilities : "|V0.3|",
+             my_id );
  
    if(attached_profiles)
       changeProperty( d->display,
