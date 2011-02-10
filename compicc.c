@@ -574,7 +574,7 @@ static void updateWindowRegions(CompWindow *w)
   pw->nRegions = count;
   pw->active = 1;
   if(pw->nRegions > 1)
-    pw->stencil_id = colour_desktop_stencil_id_pool++;
+    pw->stencil_id = ++colour_desktop_stencil_id_pool;
   else
     pw->stencil_id = 0;
 
