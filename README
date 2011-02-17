@@ -34,6 +34,9 @@ Dependencies:
   openSUSE:
     (nouveau might need http://software.opensuse.org/search?q=Mesa-nouveau3d)
 
+  Debian/Ubuntu:
+    (nouveau might need libgl1-mesa-dri-experimental)
+
 Building:
     $ ./configure
     $ make
