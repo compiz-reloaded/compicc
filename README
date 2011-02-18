@@ -5,6 +5,30 @@ Compicc
     narrow gamut displays. Each connected monitor is colour corrected for its
     own.
 
+    CompICC uses Oyranos to configure the ICC profiles for each monitor.
+    The order of monitor configuration inside OYranos is, first look in the 
+    Oyranos DB for a explicit configured ICC profile, if no then scan the 
+    installed ICC profiles for one matching the to be setup device, if not 
+    generate on the fly from the monitors EDID data block, if not 
+    try from the Xorg log and as a last means 
+    take sRGB, if not 
+    fail miserably ;-)
+
+    CompICC is a opt out colour correction mechanism. This means, CompICC does 
+    its work unquestioned. This implicit style of colour management helps to 
+    render a consistent desktop. Naive applications can continue to assume they
+    are drawing in sRGB. sRGB is the standard colour space for the internet. 
+    There are some applications, which want to do own colour corrections for 
+    displaying large gamut photos, proofing or monitor calibration. Those need 
+    to tell CompICC not to colour correct a certain region of their window to 
+    do advanced colour management of their own. After updating these colour 
+    management aware applications they will work the same as before. Without 
+    updating to the net-color spec they see all monitors as in sRGB, which is 
+    not wrong for most of them. Calibration tools need to support the net-color 
+    spec to continue to work as expected. The only workaround for them is to 
+    disable CompICC during calibration and ICC profiling.
+
+
 Internet:
     git:  git://compicc.git.sourceforge.net/gitroot/compicc/compicc (read-only)
 
@@ -60,7 +84,7 @@ Install:
 
 Usage:
     Use ccsm to switch the plugin on. Its named Colour Management, but might be
-    translated according to your locale settings..
+    translated according to your locale settings.
     Advanced settiging can be activated by setting a root window
     Atom called _NET_COLOR_DISPLAY_ADVANCED to "1". 
     Setting to "0" will nethertheless update the colour transformations in 
