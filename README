@@ -5,6 +5,14 @@ Compicc
     narrow gamut displays. Each connected monitor is colour corrected for its
     own.
 
+    CompICC is written to help the many colour management unaware applications.
+    It takes them off any decision, what to do around monitor profiles. To do 
+    so CompICC does its work unquestioned. The result is a more consistent 
+    desktop.
+
+
+== Features ==
+
     CompICC uses Oyranos to configure the ICC profiles for each monitor.
     The order of monitor configuration inside OYranos is, first look in the 
     Oyranos DB for a explicit configured ICC profile, if no then scan the 
