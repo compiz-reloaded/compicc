@@ -14,12 +14,11 @@ Compicc
 == Features ==
 
     CompICC uses Oyranos to configure the ICC profiles for each monitor.
-    The order of monitor configuration inside OYranos is, first look in the 
-    Oyranos DB for a explicit configured ICC profile, if no then scan the 
-    installed ICC profiles for one matching the to be setup device, if not 
+    The order of monitor configuration inside Oyranos is, first look in the 
+    Oyranos DB for a explicit configured ICC profile, if no then scan
+    the installed ICC profiles for one matching the to be setup device, if not 
     generate on the fly from the monitors EDID data block, if not 
-    try from the Xorg log and as a last means 
-    take sRGB, if not 
+    try from the Xorg log and as a last means take sRGB, if not 
     fail miserably ;-)
 
     CompICC is a opt out colour correction mechanism. This means, CompICC does 
