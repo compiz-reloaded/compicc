@@ -11,7 +11,7 @@ Prefix:    %{_prefix}
 %define _disable_ld_no_undefined 1
 
 BuildRequires:       liboyranos-alpha-devel
-Requires:            liboyranos0-monitor
+Requires:            liboyranos0-monitor compiz
 
 %if 0%{?suse_version} > 0
 BuildRequires:     gcc-c++ doxygen graphviz pkgconfig  libpng-devel libjpeg-devel xorg-x11-Mesa xorg-x11-Mesa-devel liblcms-devel xdg-utils compiz-devel libXcm-devel netpbm
