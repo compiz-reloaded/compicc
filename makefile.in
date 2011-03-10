@@ -24,7 +24,7 @@ LIB_XNVCTRL_NAME = $(LIB_XNVCTRL_NAME_STATIC)
 INCL= -I/usr/include -I$(includedir) -I$(SRCDIR) \
 	$(OYRANOS_H) $(X_H) $(OS_INCL) $(COMPIZ_H) $(XCM_H)
 
-LDLIBS = $(LDFLAGS) -L$(libdir) -L. \
+LDLIBS = $(LDFLAGS) $(COMPIZ_LIBS) -L$(libdir) -L. \
 	$(OYRANOS_LIBS) $(LIBXML2_LIBS) -lc $(I18N_LIB)
 
 MODULE_LDLIBS =	-l$(TARGET) $(lc) 
