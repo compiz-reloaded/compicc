@@ -1,3 +1,46 @@
+Version 0.8.4
+
+Kai-Uwe Behrmann (36):
+	* [conf]: update
+	* [build]: explicite require compiz for packaging
+	* [build]: link against basic Compiz libs
+	* [docu]: fix typo
+	* [docu]: some more introduction
+	* [docu]: add more details to the introduction
+	* [docu]: tell about compiz + nouveau
+	* [core]: fix double correction for first opt-out
+	* [core]: report only actual capabilities
+	* [core]: better check before claim colour managed
+	* [docu]: resize icon
+	* [core]: adapt to new public oyHash_s APIs
+	* [core]: fix compiler warnings
+	* [build]: compress package with bzip2
+	* [docu]: add installation instructions
+	* [conf]: sync test script with Oyranos
+	* [conf]: use -fPIC only on 64-bit builds
+	* [docu]: nouveau + compiz package on openSUSE
+	* [core]: add compatibility macro for oy < 201
+	* [core]: cache the transformed pixels in memory
+	* [docu]: add user installation hint
+	* [core]: fix new rendering bug from #cfbb3ab3
+	* [docu]: label the colour transform in ARB code
+	* [core]: simplify previous commit
+	* [core]: de-and multiply alpha
+	* [core]: reduce shader code
+	* [core]: remove unused variable
+	* [conf]: bump version
+	* [docu]: fix typo
+	* [core]: reorder setupColourTables()
+	* [core]: add more error messages
+	* [docu]: _NET_COLOR_DISPLAY_ADVANCED usage
+	* [core]: support _NET_COLOR_DISPLAY_ADVANCED
+	* [core]: use Oyranos CMM settings
+	* [core]: first steps towards compiz 0.9.x
+	* [docu]: update ChangeLog
+
+Nicolas Chauvet (1):
+	* [conf]: apply Fedora patch for pkg-config
+
 Version 0.8.3
 
 Kai-Uwe Behrmann (11):
