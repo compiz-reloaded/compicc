@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
-              2009-2010 (C) Kai-Uwe Behrmann
+              2009-2011 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -973,6 +973,9 @@ static int     getDeviceProfile      ( CompScreen        * s,
 }
 
 void oyArray2d_ToPPM_( oyStruct_s *, const char * );
+int          oyImage_PpmWrite        ( oyImage_s         * image,
+                                       const char        * file_name,
+                                       const char        * free_text );
 
 oyStructList_s * colour_table_cache = NULL;
 
@@ -1083,11 +1086,6 @@ static void    setupColourTables     ( CompScreen        * s,
       oyFilterNode_Release( &icc );
       oyFilterGraph_Release( &cc_graph );
 
-      if(hash_text)
-      {
-        free(hash_text); hash_text = 0;
-      }
-
       if(clut)
         memcpy( output->clut, clut->array2d[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
@@ -1151,10 +1149,16 @@ static void    setupColourTables     ( CompScreen        * s,
 
       if(oy_debug)
       {
-        oyArray2d_ToPPM_( image_in->pixel_data, "compiz_dbg_in.ppm");
-        oyArray2d_ToPPM_( image_out->pixel_data, "compiz_dbg_out.ppm");
+        oyImage_PpmWrite( image_in, "compiz_dbg_in-%d.ppm", hash_text );
+        oyImage_PpmWrite( image_out, "compiz_dbg_out-%d.ppm", hash_text );
         oyArray2d_ToPPM_( (oyStruct_s*) clut, "compiz_dbg_clut.ppm");
       }
+
+      if(hash_text)
+      {
+        free(hash_text); hash_text = 0;
+      }
+
 
       oyOptions_Release( &options );
       oyImage_Release( &image_in );
