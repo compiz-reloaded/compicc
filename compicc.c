@@ -46,7 +46,6 @@
 
 #include <X11/Xcm/Xcm.h>
 
-//#define OY_CACHE 1 /* aching in Oyranos is slower */
 
 #define OY_COMPIZ_VERSION (COMPIZ_VERSION_MAJOR * 10000 + COMPIZ_VERSION_MINOR * 100 + COMPIZ_VERSION_MICRO)
 #if OY_COMPIZ_VERSION < 708
@@ -249,79 +248,11 @@ static void changeProperty           ( Display           * display,
 static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool delete);
 static oyStructList_s * pluginGetPrivatesCache ();
 
-/**
- *    Private Data Allocation
- *
- * These are helper functions that really should be part of compiz. The private
- * data setup and handling currently requires macros and duplicates code all 
- * over the place. These functions, along with the object setup code (at the 
- * very bottom of this source file) make it much simpler.
- */
-#if 0
-static void *compObjectGetPrivateIndex(CompObject *o)
-{
-  if (o == NULL)
-    return &corePrivateIndex;
-
-  return compObjectGetPrivateIndex(o->parent);
-}
-
-static CompObject * compObjectGetTopLeave( CompObject * o )
-{
-  while(o->parent)
-    o = o->parent;
-  return o;
-}
-#endif
-
 static void *compObjectGetPrivate(CompObject *o)
 {
-  /*
-  int *privateIndex = 0;
-
-  if(!o)
-    return NULL;
-
-  privateIndex = compObjectGetPrivateIndex( compObjectGetTopLeave( o ));
-  if (privateIndex == NULL)
-    return NULL;
-
-  return o->privates[*privateIndex].ptr;
-  */
-
   oyPointer private_data = pluginGetPrivatePointer( o );
   return private_data;
 }
-
-#if 0
-static void *compObjectAllocPrivate(CompObject *parent, CompObject *object, int size)
-{
-  int *privateData = 0;
-  int *privateIndex = compObjectGetPrivateIndex(parent);
-  if (privateIndex == NULL)
-    return NULL;
-
-  privateData = malloc(size);
-  if (privateData == NULL)
-    return NULL;
-
-  memset( privateData, 0, size );
-
-  /* allocate an index for child objects */
-  if (object->type < 3) {
-    *privateData = compObjectAllocatePrivateIndex(object, object->type + 1);
-    if (*privateData == -1) {
-      free(privateData);
-      return NULL;
-    }
-  }
-
-
-  object->privates[*privateIndex].ptr = privateData;
-
-  return privateData;
-}
-#endif
 
 static void compObjectFreePrivate(CompObject *o)
 {
@@ -391,14 +322,6 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int function = -1;
 
-#if defined(PLUGIN_DEBUG_)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "Shader request: %d/%d %d/%d/%d %d/%d/%d",DBG_ARGS,
-                  ps->function, ps->function_2,
-                  param, ps->param, ps->param_2,
-                  unit, ps->unit, ps->unit_2);
-#endif
-
   if (ps->function && ps->param == param && ps->unit == unit)
     return ps->function;
 
@@ -434,11 +357,6 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
 
   function = createFragmentFunction(s, "compicc", data);
 
-#if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "Shader compiled: %d/%d/%d", DBG_ARGS,
-                  function, param, unit);
-#endif
 
 
   if(ps->param == -1)
@@ -496,11 +414,6 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
   XFlush( dpy );
 
   int result = XGetWindowProperty(dpy, w, prop, 0, ~0, delete, type, &actual, &format, n, &left, &data);
-#if defined(PLUGIN_DEBUG_)
-  fprintf( stderr, DBG_STRING "%s delete=%d %s %lu\n", DBG_ARGS,
-                XGetAtomName( dpy, prop ), delete,
-                (result == Success) ? "fine" : "err", *n );
-#endif
   if (result == Success)
     return (void *) data;
 
@@ -558,12 +471,6 @@ static void updateWindowRegions(CompWindow *w)
   {
     pw->pRegion[i].xRegion = convertRegion( d->display, ntohl(region->region) );
 
-#if defined(PLUGIN_DEBUG_)
-    BOX * b = &pw->pRegion[i].xRegion->extents;
-    if(b)
-    printf( DBG_STRING "\n  substract region[%d] %dx%d+%d+%d\n",DBG_ARGS,(int)i,
-            b->x2 - b->x1, b->y2 - b->y1, b->x1, b->y1 );
-#endif
 
     /* substract a application region from the window region */
     XSubtractRegion( wRegion, pw->pRegion[i].xRegion, wRegion );
@@ -578,9 +485,6 @@ static void updateWindowRegions(CompWindow *w)
   else
     pw->stencil_id = 0;
 
-#if defined(PLUGIN_DEBUG_)
-  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "\n  Updated window regions, %d total now; id:%d %dx%d", count, pw->stencil_id, w->serverWidth,w->serverHeight);
-#endif
 
   pw->absoluteWindowRectangleOld = oyRectangle_NewWith( 0,0, w->serverWidth, w->serverHeight, 0 );
 
@@ -607,10 +511,6 @@ static void updateWindowOutput(CompWindow *w)
   unsigned long nBytes;
   pw->output = fetchProperty(d->display, w->id, pd->netColorTarget, XA_STRING, &nBytes, False);
 
-#if defined(_NET_COLOR_DEBUG)
-  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Updated window output, target is %s", pw->output);
-#endif
-
   if(!pw->nRegions)
     addWindowDamage(w);
 }
@@ -622,9 +522,6 @@ static void cdCreateTexture( PrivColorOutput *ccontext )
     ccontext->scale = (GLfloat) (GRIDPOINTS - 1) / GRIDPOINTS;
     ccontext->offset = (GLfloat) 1.0 / (2 * GRIDPOINTS);
 
-#if defined(PLUGIN_DEBUG_)
-    printf( DBG_STRING "\n", DBG_ARGS );
-#endif
 
     glGenTextures(1, &ccontext->glTexture);
     glBindTexture(GL_TEXTURE_3D, ccontext->glTexture);
@@ -693,21 +590,6 @@ static int     cleanScreenProfile    ( CompScreen        * s,
   a = XInternAtom(s->display->display, icc_profile_atom, False);
 
   XFlush( s->display->display );
-#if defined(DEBUG)
-  Atom actual;
-  int format;
-  unsigned long left, n = 0;
-  unsigned char *data;
-
-
-  int result = XGetWindowProperty( s->display->display, root, a,
-                     0, ~0, 0, XA_CARDINAL, &actual, &format, &n, &left, &data);
-  if(left && data)
-    XFree(data);
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "%d XDeleteProperty: %s(%d)", DBG_ARGS,
-                  result, icc_profile_atom, left+n);
-#endif 
   XDeleteProperty( s->display->display, root, a );
   return (int)0;
 }
@@ -718,19 +600,9 @@ static void changeProperty           ( Display           * display,
                                        void              * data,
                                        unsigned long       size )
 {
-#ifdef DEBUG_
-  fprintf( stderr, DBG_STRING"set %s size %ld\n", DBG_ARGS,
-           XGetAtomName( display, target_atom ), size );
-  int r = 
-#endif
     XChangeProperty( display, RootWindow( display, 0 ),
                      target_atom, type, 8, PropModeReplace,
                      data, size );
-#if defined(DEBUG_)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "XChangeProperty: %d", DBG_ARGS,
-                  r);
-#endif 
 }
 
 static void    moveICCprofileAtoms   ( CompScreen        * s,
@@ -790,16 +662,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       changeProperty ( s->display->display,
                        target_atom, XA_CARDINAL,
                        source, source_n );
-#if defined(PLUGIN_DEBUG)
-      if(init)
-        fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
-                 icc_profile_atom,
-                 icc_colour_server_profile_atom, (int)source_n );
-      else
-        fprintf( stderr, DBG_STRING "copy from %s to %s (%d)\n", DBG_ARGS,
-                 icc_colour_server_profile_atom,
-                 icc_profile_atom, (int)source_n );
-#endif
     }
     XFree( source );
     source = 0; source_n = 0;
@@ -830,10 +692,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
         changeProperty ( s->display->display,
                          source_atom, XA_CARDINAL,
                          source, source_n );
-#if defined(PLUGIN_DEBUG)
-        printf( DBG_STRING "set %s (%d)\n", DBG_ARGS,
-                icc_profile_atom, (int)source_n );
-#endif
       }
       oyProfile_Release( &screen_document_profile );
       if(source) free( source ); source = 0;
@@ -867,9 +725,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
 
   snprintf( num, 12, "%d", (int)screen );
 
-#if defined(PLUGIN_DEBUG)
-    printf(DBG_STRING"HuHu screen %d\n", DBG_ARGS, screen);
-#endif
     o = oyConfig_Find( device, "device_rectangle" );
     if( !o )
     {
@@ -896,11 +751,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
     {
       strcpy( output->name, device_name );
 
-#if defined(PLUGIN_DEBUG)
-      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                      DBG_STRING "  screen output found %s %s",
-                      DBG_ARGS, output->name, oyRectangle_Show(r) );
-#endif
 
     } else
     {
@@ -915,10 +765,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
     output->oy_profile = (oyProfile_s*) 
                                   oyOption_StructGet( o, oyOBJECT_PROFILE_S );
 
-#if defined(PLUGIN_DEBUG)
-    printf(DBG_STRING"found device icc_profile %d\n", DBG_ARGS, o?1:0);
-#endif
-
     oyProfile_Release( &output->oy_profile );
 
     if(!output->oy_profile)
@@ -932,13 +778,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
                                        "yes", OY_CREATE_NEW );
       t_err = oyDeviceGetProfile( device, options, &output->oy_profile );
       oyOptions_Release( &options );
-#if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING"found net icc_profile 0x%lx %s %d 0x%lx %s\n",DBG_ARGS,
-              (intptr_t)output->oy_profile,
-              oyProfile_GetFileName(output->oy_profile, -1),
-              t_err, (intptr_t)output,
-              hasScreenProfile( s, screen, 0 ) ? "uploaded" : "" );
-#endif
     }
 
     if(output->oy_profile)
@@ -965,10 +804,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
       error = 1;
     }
 
-#if defined(PLUGIN_DEBUG)
-    printf( DBG_STRING"found icc_profile 0x%lx %d 0x%lx\n", DBG_ARGS,
-             (intptr_t)output->oy_profile, t_err,  (intptr_t)output);
-#endif
   return error;
 }
 
@@ -1000,14 +835,6 @@ static void    setupColourTables     ( CompScreen        * s,
     if (output->oy_profile)
     {
       int flags = 0;
-#if defined(PLUGIN_DEBUG_)  /* expensive lookup */
-      const char * tmp = oyProfile_GetFileName( output->oy_profile, 0 );
-
-      oyCompLogMessage(s->display, "compicc", CompLogLevelInfo,
-             DBG_STRING "Output %s: extracted profile from Oyranos: %s",
-             DBG_ARGS, output->name,
-             (strrchr(tmp, OY_SLASH_C)) ? strrchr(tmp, OY_SLASH_C) + 1 : tmp );
-#endif
 
       oyProfile_s * src_profile = 0,
                   * dst_profile = output->oy_profile;
@@ -1032,20 +859,17 @@ static void    setupColourTables     ( CompScreen        * s,
       if(opt)
         XFree( opt ); opt = 0;
 
-      START_CLOCK("create images")
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut,
                                              pixel_layout, src_profile, 0 );
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              output->clut,
                                              pixel_layout, dst_profile, 0 );
-      END_CLOCK
 
       oyProfile_Release( &src_profile );
 
-      START_CLOCK("oyConversion_CreateBasicPixels: ")
       cc = oyConversion_CreateBasicPixels( image_in, image_out,
-                                                      options, 0 ); END_CLOCK
+                                                      options, 0 );
       if (cc == NULL)
       {
         oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1091,21 +915,6 @@ static void    setupColourTables     ( CompScreen        * s,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       else
       {
-        if(oy_debug)
-        {
-          const char * t = "--";
-          oyHash_s * e = (oyHash_s*) oyStructList_Get_(cache, 0);
-          if(entry)
-            t = oyStructTypeToText(oyHash_GetType(entry));
-          printf( DBG_STRING
-                  "hash: %s %s cache: 0x%lx entry: 0x%lx cache[0]:%s\n",
-                  DBG_ARGS, hash_text?hash_text:"", t,
-                  (unsigned long)cache, (unsigned long)entry,
-                  e ? oyStructTypeToText(oyHash_GetType(e)) : "--" );
-        }
-
-
-        START_CLOCK("fill array: ")
         uint16_t in[3];
         for (int r = 0; r < GRIDPOINTS; ++r)
         {
@@ -1120,13 +929,12 @@ static void    setupColourTables     ( CompScreen        * s,
                 output->clut[b][g][r][j] = in[j];
             }
           }
-        } END_CLOCK
+        }
 
         clut = oyArray2d_Create( NULL, GRIDPOINTS*3, GRIDPOINTS*GRIDPOINTS,
                                  oyUINT16, NULL );
 
-        START_CLOCK("oyConversion_RunPixels: ")
-        error = oyConversion_RunPixels( cc, 0 ); END_CLOCK
+        error = oyConversion_RunPixels( cc, 0 );
 
         if(error)
         {
@@ -1136,22 +944,10 @@ static void    setupColourTables     ( CompScreen        * s,
           return;
         }
 
-        printf( DBG_STRING "size: %lu\n",
-                  DBG_ARGS, sizeof(clut->array2d[0]) );
-
         memcpy( clut->array2d[0], output->clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
-        printf( DBG_STRING "size: %d\n",
-                  DBG_ARGS, oyStructList_Count( cache ) );
-      }
-
-      if(oy_debug)
-      {
-        oyImage_PpmWrite( image_in, "compiz_dbg_in-%d.ppm", hash_text );
-        oyImage_PpmWrite( image_out, "compiz_dbg_out-%d.ppm", hash_text );
-        oyArray2d_ToPPM_( (oyStruct_s*) clut, "compiz_dbg_clut.ppm");
       }
 
       if(hash_text)
@@ -1165,8 +961,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyImage_Release( &image_out );
       oyConversion_Release( &cc );
 
-      START_CLOCK("cdCreateTexture: ")
-      cdCreateTexture( output ); END_CLOCK
+      cdCreateTexture( output );
 
     } else {
       oyCompLogMessage( s->display, "compicc", CompLogLevelInfo,
@@ -1213,9 +1008,6 @@ void cleanDisplayEDID( CompScreen *s )
      */
 
     /* refresh EDID */
-#if defined(PLUGIN_DEBUG)
-    printf( DBG_STRING "send edid refresh\n", DBG_ARGS );
-#endif
     error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
                                    "list", OY_CREATE_NEW );
     error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
@@ -1273,13 +1065,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   /* clean memory */
   if(init)
   {
-    START_CLOCK("freeOutput:")
-    freeOutput(ps); END_CLOCK
-#if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-               DBG_STRING "call cleanDisplayProfiles() init: %d",
-                    DBG_ARGS, init);
-#endif
+    freeOutput(ps);
     cleanDisplayProfiles( s );
   }
 
@@ -1297,11 +1083,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   oyOptions_Release( &options );
 
   n = oyConfigs_Count( devices );
-#if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-               DBG_STRING "Oyranos monitor \"%s\" devices found: %d init: %d",
-                    DBG_ARGS, DisplayString( s->display->display ), n, init);
-#endif
 
   if(init)
   {
@@ -1334,16 +1115,10 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   }
   oyConfigs_Release( &devices );
 
-#if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "Updated screen outputs, %d total  %s",
-                  DBG_ARGS, ps->nCcontexts, init?"init":"");
-#endif
-  START_CLOCK("damageWindow(s)")
   {
     int all = 1;
     forEachWindowOnScreen( s, damageWindow, &all );
-  } END_CLOCK
+  }
 }
 
 /**
@@ -1369,15 +1144,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   {
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
-#if defined(PLUGIN_DEBUG)
-    if (event->xproperty.atom == pd->netColorProfiles ||
-        event->xproperty.atom == pd->netColorRegions ||
-        event->xproperty.atom == pd->netColorTarget ||
-        event->xproperty.atom == pd->netColorDesktop ||
-           strstr( atom_name, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE) != 0 ||
-           strstr( atom_name, "EDID") != 0)
-      printf( DBG_STRING "PropertyNotify: %s\n", DBG_ARGS, atom_name );
-#endif
 
     if (event->xproperty.atom == pd->netColorRegions) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
@@ -1436,9 +1202,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
              */
             if(oyProfile_Equal( sp, web ))
             {
-#if defined(PLUGIN_DEBUG)
-              printf( DBG_STRING"received sRGB and ignore\n", DBG_ARGS );
-#endif
               oyProfile_Release( &sp );
               ignore_profile = 1;
             }
@@ -1459,15 +1222,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
                                da, XA_CARDINAL,
                                (unsigned char*)NULL, 0 );
             }
-#if defined(PLUGIN_DEBUG)
-            if(!tmp) tmp = oyProfile_GetFileName( sp, 0 );
-            if(!tmp) tmp = oyProfile_GetText( sp, oyNAME_DESCRIPTION );
-            if(!tmp) tmp = "----";
-            printf( DBG_STRING"ignor profiles: %s :%s \"%s\"\n",
-                    DBG_ARGS, ignore_profile?"ignoring":"accept",
-                    atom_name, (strrchr(tmp, OY_SLASH_C)) ? strrchr(tmp, OY_SLASH_C) + 1 : tmp );
-      
-#endif
             sp = 0;
             XFree( data );
           }
@@ -1479,10 +1233,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
            /* change only existing profiles, ignore removed ones */
            n)
         {
-#if defined(PLUGIN_DEBUG)
-          printf( DBG_STRING "!ignore_profile && n(%d) && !update\n", DBG_ARGS,
-                  (int)n );
-#endif
           updateOutputConfiguration( s, FALSE );
         }
       }
@@ -1490,15 +1240,9 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     /* update for changing geometry */
     } else if (event->xproperty.atom == pd->netDesktopGeometry)
     {
-#if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING "received _NET_DESKTOP_GEOMETRY\n", DBG_ARGS );
-#endif
       updateOutputConfiguration(s, TRUE);
     } else if (event->xproperty.atom == pd->netDisplayAdvanced)
     {
-#if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING "received _NET_COLOR_DISPLAY_ADVANCED\n", DBG_ARGS );
-#endif
       updateOutputConfiguration( s, FALSE );
     }
 
@@ -1506,10 +1250,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   case ClientMessage:
     if (event->xclient.message_type == pd->netColorManagement)
     {
-#if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING "ClientMessage: %s\n", DBG_ARGS,
-               XGetAtomName( event->xany.display, event->xclient.message_type) );
-#endif
       CompWindow *w = findWindowAtDisplay (d, event->xclient.window);
       PrivWindow *pw = compObjectGetPrivate((CompObject *) w);
 
@@ -1521,17 +1261,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     if (event->type == d->randrEvent + RRNotify) {
       XRRNotifyEvent *rrn = (XRRNotifyEvent *) event;
       CompScreen *s = findScreenAtDisplay(d, rrn->window);
-#if defined(PLUGIN_DEBUG)
-      printf( DBG_STRING "XRRNotifyEvent %d\n", DBG_ARGS, rrn->subtype );
-      /*if(rrn->subtype == RRNotify_OutputProperty)
       {
-        XRROutputChangeNotifyEvent * oce = (XRROutputChangeNotifyEvent*) rrn;
-      }*/
-#endif
-      {
-#if defined(PLUGIN_DEBUG)
-        printf( DBG_STRING "received XRRNotify event\n", DBG_ARGS );
-#endif
         updateOutputConfiguration(s, TRUE);
       }
     }
@@ -1542,12 +1272,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   /* initialise */
   if(s && ps && s->nOutputDev != ps->nCcontexts)
   {
-#if defined(PLUGIN_DEBUG)
-    char num[12];
-    sprintf(num, "%d", event->type);
-    printf( DBG_STRING "s->nOutputDev %d != ps->nCcontexts %d  %s\n", DBG_ARGS,
-            (int)s->nOutputDev, (int)ps->nCcontexts, atom_name?atom_name:num );
-#endif
     updateOutputConfiguration( s, TRUE);
   }
  
@@ -1586,20 +1310,9 @@ static void damageWindow(CompWindow *w, void *closure)
       (w->type ==1 || w->type == 128) &&
       w->resName*/)
   {
-#if defined(PLUGIN_DEBUG_)
-    printf( "damaged - %dx%d+%d+%d  %s\n", 
-            w->serverWidth, w->serverHeight,w->serverX, w->serverY,
-            w->resName?w->resName:"???" );
-#endif
     /* what is so expensive */
     addWindowDamage(w);
   }
-#if defined(PLUGIN_DEBUG_)
-  else
-    printf( "%dx%d+%d+%d  resName %s\n", 
-            w->serverWidth, w->serverHeight,w->serverX, w->serverY,
-            w->resName?w->resName:"???" );
-#endif
 }
 
 
@@ -1649,15 +1362,8 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
        w->serverHeight != pw->absoluteWindowRectangleOld->height)
       updateWindowRegions( w );
 
-    /* Clear the stencil buffer with zero. But we do not know when the loop
-     * starts */
-    //glClear(GL_STENCIL_BUFFER_BIT);
-
     oyRectangle_SetByRectangle( pw->absoluteWindowRectangleOld, rect );
 
-#if defined(PLUGIN_DEBUG_)
-    printf( DBG_STRING "%s\n", DBG_ARGS, oyRectangle_Show(rect) );
-#endif
   }
 
   oyRectangle_Release( &rect );
@@ -1691,16 +1397,6 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
     if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
       goto cleanDrawWindow;
 
-#if defined(PLUGIN_DEBUG_)
-    //if(b->y2 - b->y1 == 190)
-    //if((int)pw->stencil_id == 7)
-    printf( DBG_STRING "%dx%d+%d+%d  %d[%d] on %d\n", DBG_ARGS,
-            b->x2 - b->x1, b->y2 - b->y1, b->x1, b->y1,
-            (int)pw->stencil_id, (int)STENCIL_ID, i );
-    b = &region->extents;
-    printf( DBG_STRING "region: %dx%d+%d+%d\n", DBG_ARGS,
-            b->x2 - b->x1, b->y2 - b->y1, b->x1, b->y1 );
-#endif
 
     w->vCount = w->indexCount = 0;
     (*w->screen->addWindowGeometry) (w, &w->matrix, 1, intersection, region);
@@ -1725,9 +1421,6 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 
   XDestroyRegion( aRegion ); aRegion = 0;
 
-#if defined(PLUGIN_DEBUG_)
-  printf( DBG_STRING "\n", DBG_ARGS );
-#endif
 
   return status;
 }
@@ -1762,19 +1455,12 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   if (function)
     addFragmentFunction(&fa, function);
 
-#if 1
   if( pw->stencil_id )
   {
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO);
   } else
     glEnable(GL_SCISSOR_TEST);
-#endif
-
-  if(w->screen->nOutputDev != ps->nCcontexts)
-    oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                    DBG_STRING "Need to update screen outputs, %d / %d",
-                    DBG_ARGS, ps->nCcontexts, w->screen->nOutputDev );
 
   for(int i = 0; i < ps->nCcontexts; ++i)
   {
@@ -1822,18 +1508,6 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     /* Only draw where the stencil value matches the window and output */
     glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
 
-#if defined(PLUGIN_DEBUG_)
-#if 1
-    //if(b->y2 - b->y1 == 190)
-    //if((int)pw->stencil_id == 7)
-    printf( DBG_STRING "%dx%d+%d+%d  %d[%d] on %d\n", DBG_ARGS,
-            b->x2 - b->x1, b->y2 - b->y1, b->x1, b->y1,
-            (int)pw->stencil_id, (int)STENCIL_ID, i );
-#else
-    printf( DBG_STRING "%d[%d]\n", DBG_ARGS, (int)pw->stencil_id,
-            (int)(pw->stencil_id*ps->nCcontexts + i + 1));
-#endif
-#endif
 
     /* Now draw the window texture */
     UNWRAP(ps, s, drawWindowTexture);
@@ -1861,34 +1535,8 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
   glDisable(GL_STENCIL_TEST);
   glDisable(GL_SCISSOR_TEST);
-
-#if defined(PLUGIN_DEBUG_)
-  printf( DBG_STRING "\n", DBG_ARGS );
-#endif
 }
 
-#if 0
-/**
- * This is really stupid, object->parent isn't inisialized when 
- * pluginInitObject() is called. So this is a wrapper to get the parent because
- * compObjectAllocPrivate() needs it.
- */
-static CompObject *getParent(CompObject *object)
-{
-  switch (object->type) {
-  case 0:
-    return NULL;
-  case 1:
-    return (CompObject *) &core;
-  case 2:
-    return (CompObject *) ((CompScreen *) object)->display;
-  case 3:
-    return (CompObject *) ((CompWindow *) object)->screen;
-  default:
-    return NULL;
-  }
-}
-#endif
 
 /**
  *    Object Init Functions
@@ -1959,11 +1607,6 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
 
   if(!colour_desktop_can)
     return 1;
-
-#if defined(PLUGIN_DEBUG_)
-  printf( DBG_STRING "net_color_desktop_last_time: %ld/%ld %d\n",
-          DBG_ARGS, cutime-net_color_desktop_last_time, cutime, request );
-#endif
 
   atom_colour_server_name = (char*)malloc(1024);
   atom_capabilities_text = (char*)malloc(1024);
@@ -2167,9 +1810,6 @@ static dispatchObjectProc dispatchInitObject[] = {
 
 static CompBool pluginFiniCore(CompPlugin *plugin, CompObject *object, void *privateData)
 {
-  /* Don't crash if something goes wrong inside lcms */
-  //cmsErrorAction(LCMS_ERRC_WARNING);
-
   return TRUE;
 }
 
@@ -2202,11 +1842,6 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
   error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
 
   n = oyConfigs_Count( devices );
-#if defined(PLUGIN_DEBUG)
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                  DBG_STRING "Oyranos monitor \"%s\" devices found: %d",
-                  DBG_ARGS, DisplayString( s->display->display ), n);
-#endif
 
   /* switch profile atoms back */
   for(int i = 0; i < ps->nCcontexts; ++i)
@@ -2245,12 +1880,6 @@ static dispatchObjectProc dispatchFiniObject[] = {
  */
 static CompBool pluginInit(CompPlugin *p)
 {
-#if 0
-  corePrivateIndex = allocateCorePrivateIndex();
-
-  if (corePrivateIndex < 0)
-    return FALSE;
-#endif
   return TRUE;
 }
 
@@ -2260,67 +1889,6 @@ static oyStructList_s * pluginGetPrivatesCache ()
   if(!privates_cache)
     privates_cache = oyStructList_New( 0 );
   return privates_cache;
-}
-
-int pluginPrivatesRelease( oyPointer * ptr )
-{
-  if(ptr)
-  {
-    free(*ptr);
-    *ptr = 0;
-    return 0;
-  }
-  return 1;
-}
-
-static char * hash_text_ = 0;
-static int hash_len_ = sizeof(intptr_t);
-/** create a string of the exact Oyranos expected hash size */
-const char * pluginGetHashText( CompObject * o )
-{
-  const char * type_name = "unknown";
-  char * ptr;
-  unsigned char c,d,e;
-  int i;
-  if(!hash_text_)
-  {
-    hash_text_ = (char*) malloc (2*OY_HASH_SIZE);
-    memset( hash_text_, 0, 2*OY_HASH_SIZE );
-    hash_text_[4 + hash_len_] = 0;
-  }
-  if(!hash_text_ || !o) return NULL;
-  switch(o->type)
-  {
-    case COMP_OBJECT_TYPE_CORE: type_name = "CORE"; break;
-    case COMP_OBJECT_TYPE_DISPLAY: type_name = "DISPLAY"; break;
-    case COMP_OBJECT_TYPE_SCREEN: type_name = "SCREEN"; break;
-    case COMP_OBJECT_TYPE_WINDOW: type_name = "WINDOW"; break;
-  }
-  /* use memcpy to be fast */
-#if 0
-  static int init = 0;
-  sprintf( hash_text_, "%s[0x%lx]", type_name, (intptr_t)o );
-  if(o->type == COMP_OBJECT_TYPE_DISPLAY)
-  if(init++<10)
-  printf("%s\n", hash_text_);
-#else
-  memcpy( hash_text_, type_name, 4 );
-  ptr = (char*)&o;
-  for(i = 0; i < sizeof(int*); ++i)
-  {
-    c = ptr[sizeof(int*)-i-1];
-    d = c&0x0f;
-    e = c >> 4;
-    hash_text_[4 + 2*i+1] = d < 10 ? d+48 : d+87;
-    hash_text_[4 + 2*i] = e < 10 ? e+48 : e+87;
-  }
-#if defined(PLUGIN_DEBUG_)
-  static int init = 0;
-  if(init++<10)
-  printf("%s 0x%lx\n", hash_text_, o);
-#endif
-#endif
-  return hash_text_;
 }
 
 
@@ -2333,9 +1901,6 @@ oyPointer pluginAllocatePrivatePointer( CompObject * o )
   sizeof(PrivCore), sizeof(PrivDisplay), sizeof(PrivScreen), sizeof(PrivWindow)
   };
 
-#ifdef OY_CACHE
-  return pluginGetPrivatePointer( o );
-#endif
 
   if(!o)
     return 0;
@@ -2372,32 +1937,17 @@ oyPointer pluginAllocatePrivatePointer( CompObject * o )
          }
          break;
   }
-#if defined(PLUGIN_DEBUG_)
-  fprintf(stderr, "index %d for %d\n", index, o->type );
-#endif
 
   if(index < 0)
     return 0;
 
   {
     o->privates[index].ptr = malloc(size);
-#if defined(PLUGIN_DEBUG_)
-    fprintf(stderr, "index=%d, 0x%lx size=%d\n", 
-           index, o->privates[index].ptr, (int)size );
-#endif
     if(!o->privates[index].ptr) return 0;
-#if defined(PLUGIN_DEBUG_)
-    fprintf(stderr, "memset index=%d, 0x%lx size=%d\n", 
-           index, o->privates[index].ptr, (int)size );
-#endif
     memset( o->privates[index].ptr, 0, size);
   }
 
   ptr = o->privates[index].ptr;
-
-#if defined(PLUGIN_DEBUG_)
-  fprintf(stderr, "return ptr=0x%lx for type=%d[ 0x%lx]\n", ptr, o->type, o );
-#endif
 
   return ptr;
 }
@@ -2408,40 +1958,6 @@ oyPointer pluginGetPrivatePointer( CompObject * o )
 
   if(!o)
     return 0;
-#if OY_CACHE
-  uint32_t exact_hash_size = 1;
-  static const int privateSizes[] = {
-  sizeof(PrivCore), sizeof(PrivDisplay), sizeof(PrivScreen), sizeof(PrivWindow)
-  };
-  const char * hash_text = pluginGetHashText( o ); if(!hash_text) return FALSE;
-  oyHash_s * entry = oyCacheListGetEntry_( pluginGetPrivatesCache(),
-                                           exact_hash_size, hash_text );
-  oyCMMptr_s * priv_ptr = (oyCMMptr_s*) oyHash_GetPointer_( entry,
-                                                        oyOBJECT_CMM_POINTER_S);
-
-  if(!priv_ptr)
-  {
-    ptr = malloc( privateSizes[o->type] ); if(!ptr) return FALSE;
-    memset( ptr, 0, privateSizes[o->type] );
-    priv_ptr = oyCMMptr_New( malloc );
-    int error = oyCMMptr_Set( priv_ptr, "compicc", hash_text, ptr, 
-                              "pluginPrivatesRelease", pluginPrivatesRelease );
-#if defined(PLUGIN_DEBUG_)
-    printf( DBG_STRING "allocated private data: %s", DBG_ARGS, hash_text );
-#endif
-    if(error) return FALSE;
-    if(error <= 0 && priv_ptr)
-      /* update cache entry */
-      error = oyHash_SetPointer_( entry, (oyStruct_s*) priv_ptr );
-  } else
-  {
-    ptr = priv_ptr->ptr;
-#if defined(PLUGIN_DEBUG_)
-    printf( DBG_STRING "private data obtained: %s", DBG_ARGS, hash_text );
-#endif
-  }
-  oyHash_Release_( &entry );
-#else
   int index = -1;
   switch(o->type)
   {
@@ -2466,7 +1982,6 @@ oyPointer pluginGetPrivatePointer( CompObject * o )
   if(!ptr)
     fprintf( stderr, "object[0x%lx] type=%d no private data reserved\n",
             (intptr_t)o, o->type );
-#endif
 
   return ptr;
 }
@@ -2475,18 +1990,9 @@ static CompBool pluginInitObject(CompPlugin *p, CompObject *o)
 {
   /* use Oyranos for caching of private data */
   oyPointer private_data = pluginAllocatePrivatePointer( o );
-#if defined(PLUGIN_DEBUG_)
-  printf("get data=0x%lx for type=%d[ 0x%lx]\n", private_data, o->type, o );
-#endif
-
-#if 0
-  void *privateData = compObjectAllocPrivate(getParent(o), o, privateSizes[o->type]);
-  if (privateData == NULL)
-    return TRUE;
-#endif
 
   if (dispatchInitObject[o->type](p, o, private_data) == FALSE)
-    return FALSE; //compObjectFreePrivate(getParent(o), o);
+    return FALSE;
   return TRUE;
 }
 
@@ -2501,27 +2007,11 @@ static void pluginFiniObject(CompPlugin *p, CompObject *o)
     return;
 
   /* release a cache entry of private data */
-#ifdef OY_CACHE
-  uint32_t exact_hash_size = 1;
-  const char * hash_text;
-  oyHash_s * entry;
-  oyCMMptr_s * priv_ptr;
-  hash_text = pluginGetHashText( o ); if(!hash_text) return;
-  entry = oyCacheListGetEntry_( pluginGetPrivatesCache(), exact_hash_size,
-                                hash_text );
-  priv_ptr = (oyCMMptr_s*) oyHash_GetPointer_( entry, oyOBJECT_CMM_POINTER_S);
-  if(priv_ptr)
-    oyCMMptr_Release( &priv_ptr );
-  oyHash_SetPointer_( entry, (oyStruct_s*) priv_ptr );
-  oyHash_Release_( &entry );
-#else
   compObjectFreePrivate( o );
-#endif
 }
 
 static void pluginFini(CompPlugin *p)
 {
-  //freeCorePrivateIndex(corePrivateIndex);
   oyStructList_Release( &privates_cache );
 }
 
