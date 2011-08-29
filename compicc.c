@@ -106,7 +106,7 @@ static time_t net_color_desktop_last_time = 0;
 
 /**
  * When a profile is uploaded into the root window, the plugin fetches the 
- * property and creates a lcms profile object. Each profile has a reference
+ * property and creates a Oyranos profile object. Each profile has a reference
  * count to allow clients to share profiles. When the ref-count drops to zero,
  * the profile is released.
  */
@@ -282,11 +282,27 @@ static void compObjectFreePrivate(CompObject *o)
     free(ptr);
 }
 
+
 /**
  * Xcolor helper functions. I didn't really want to put them into the Xcolor
  * library.
  * Other window managers are free to copy those when needed.
  */
+static inline XcolorProfile *XcolorProfileNext(XcolorProfile *profile)
+{
+	unsigned char *ptr = (unsigned char *) profile;
+	return (XcolorProfile *) (ptr + sizeof(XcolorProfile) + ntohl(profile->length));
+}
+
+static inline unsigned long XcolorProfileCount(void *data, unsigned long nBytes)
+{
+	unsigned long count = 0;
+
+	for (XcolorProfile *ptr = data; (intptr_t) ptr < (intptr_t)data + nBytes; ptr = XcolorProfileNext(ptr))
+		++count;
+
+	return count;
+}
 
 static inline XcolorRegion *XcolorRegionNext(XcolorRegion *region)
 {
@@ -299,6 +315,18 @@ static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
   return nBytes / sizeof(XcolorRegion);
 }
 
+/**
+ * Helper function to convert a MD5 into a readable string.
+ */
+static const char *md5string(const uint8_t md5[16])
+{
+	static char buffer[33];
+
+	for (int i = 0; i < 16; ++i)
+		sprintf(buffer + i * 2, "%02x", md5[i]);
+
+	return buffer;
+}
 
 /**
  * Here begins the real code
@@ -418,6 +446,147 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
     return (void *) data;
 
   return NULL;
+}
+
+static unsigned long screenProfileCount(PrivScreen *ps)
+{
+	unsigned long ret = 0;
+
+	for (unsigned long i = 0; i < ps->nProfiles; ++i) {
+		if (ps->profile[i].refCount > 0)
+			++ret;
+	}
+
+	return ret;
+}
+
+/**
+ * Search the profile database to find the profile with the given UUID.
+ * Returns the array index at which the profile is, if not found then returns
+ * PrivScreen::nProfiles
+ */
+static unsigned long findProfileIndex(CompScreen *s, const uint8_t md5[16])
+{
+	PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+
+	for (unsigned long i = 0; i < ps->nProfiles; ++i) {
+		if (ps->profile[i].refCount > 0 && memcmp(md5, ps->profile[i].md5, 16) == 0)
+			return i;
+	}
+
+#if defined(PLUGIN_DEBUG)
+	oyCompLogMessage(s->display, "color", CompLogLevelDebug, "Could not find profile with MD5 '%s'", md5string(md5));
+#endif
+
+	return ps->nProfiles;
+}
+
+
+/**
+ * Called when new profiles have been attached to the root window. Fetches
+ * these and saves them in a local database.
+ */ 
+static void updateScreenProfiles(CompScreen *s)
+{
+	PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+
+	CompDisplay *d = s->display;
+	PrivDisplay *pd = compObjectGetPrivate((CompObject *) d);
+
+	/* Fetch the profiles */
+	unsigned long nBytes;
+        int screen = DefaultScreen( s->display->display );
+	void *data = fetchProperty(d->display,
+                                   XRootWindow( s->display->display, screen ),
+                                   pd->netColorProfiles,
+                                   XA_CARDINAL, &nBytes, True);
+	if (data == NULL)
+		return;
+
+	/* Grow or shring the array as needed. */
+	unsigned long count = XcolorProfileCount(data, nBytes);
+	unsigned long usedSlots = screenProfileCount(ps);
+
+	if (usedSlots + count > ps->nProfiles) {
+ 		PrivColorProfile *ptr = realloc(ps->profile, (usedSlots + count) * sizeof(PrivColorProfile));
+		if (ptr == NULL)
+			goto out;
+
+		memset(ptr + ps->nProfiles, 0, (usedSlots + count - ps->nProfiles) * sizeof(PrivColorProfile));
+
+		ps->nProfiles = usedSlots + count;
+		ps->profile = ptr;
+	} else if (usedSlots + count < ps->nProfiles / 2) {
+		unsigned long index = 0;
+		for (unsigned long i = 0; i < ps->nProfiles; ++i) {
+			if (ps->profile[i].refCount > 0)
+				memmove(ps->profile + index++, ps->profile + i, sizeof(PrivColorProfile));
+		}
+
+		assert(index == usedSlots);
+
+ 		PrivColorProfile *ptr = realloc(ps->profile, (ps->nProfiles / 2) * sizeof(PrivColorProfile));
+		if (ptr == NULL)
+			goto out;
+
+		ps->nProfiles = ps->nProfiles / 2;
+		ps->profile = ptr;
+
+		memset(ptr + usedSlots, 0, (ps->nProfiles - usedSlots) * sizeof(PrivColorProfile));
+	}
+
+	/* Copy the profiles into the array, and create the Oyranos handles. */
+	XcolorProfile *profile = data;
+	for (unsigned long i = 0; i < count; ++i) {
+		unsigned long index = findProfileIndex(s, profile->md5);
+
+		/* XcolorProfile::length == 0 means the clients wants to delete the profile. */
+		if (ntohl(profile->length) == 0) {
+			/* Profile not found. Probably a ref-count issue inside clients. Should I throw a warning? */
+			if (index == ps->nProfiles)
+				continue;
+
+			--ps->profile[index].refCount;
+
+			/* If refcount drops to zero, destroy the Oyranos object. */
+			if (ps->profile[index].refCount == 0)
+			  oyProfile_Release( &ps->profile[index].oy_profile);
+		} else {
+			if (index == ps->nProfiles) {
+				/* Profile doesn't exist in our array, find a new free slot. */
+				for (unsigned long i = 0; i < ps->nProfiles; ++i) {
+					if (ps->profile[i].refCount > 0)
+						continue;
+
+					ps->profile[i].oy_profile = oyProfile_FromMem( htonl(profile->length), profile + 1, 0, NULL );
+
+					/* If creating the Oyranos profile fails, don't try to parse any further profiles and just quit. */
+					if (ps->profile[i].oy_profile == NULL) {
+						oyCompLogMessage(d, "color", CompLogLevelWarn, "Couldn't create Oyranos profile%s", "");
+						goto out;
+					}
+
+					memcpy(ps->profile[i].md5, profile->md5, 16);
+					ps->profile[i].refCount = 1;
+
+					break;
+				}
+			} else {
+				/* Profile alreade exists in the array, just increase the ref count. */
+				++ps->profile[index].refCount;
+			}
+		}
+
+		profile = XcolorProfileNext(profile);
+	}
+
+#if defined(PLUGIN_DEBUG)
+	oyCompLogMessage(d, "color", CompLogLevelDebug, "Updated screen profiles, %d existing plus %d updates leading to %d profiles in %d slots",
+		       usedSlots, count, screenProfileCount(ps), ps->nProfiles);
+#endif
+
+out:
+	XFree(data);
 }
 
 static unsigned long colour_desktop_stencil_id_pool = 0;
@@ -1145,7 +1314,10 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
 
-    if (event->xproperty.atom == pd->netColorRegions) {
+    if (event->xproperty.atom == pd->netColorProfiles) {
+      CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
+      updateScreenProfiles(s);
+    } else if (event->xproperty.atom == pd->netColorRegions) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
     } else if (event->xproperty.atom == pd->netColorTarget) {
