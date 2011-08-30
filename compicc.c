@@ -103,20 +103,6 @@ static int colour_desktop_can = 1;
 /* last check time */
 static time_t net_color_desktop_last_time = 0;
 
-
-/**
- * When a profile is uploaded into the root window, the plugin fetches the 
- * property and creates a Oyranos profile object. Each profile has a reference
- * count to allow clients to share profiles. When the ref-count drops to zero,
- * the profile is released.
- */
-typedef struct {
-  uint8_t md5[16];
-  oyProfile_s * oy_profile;
-
-  unsigned long refCount;
-} PrivColorProfile;
-
 /**
  * The XserverRegion is dereferenced only when the client sends a
  * _NET_COLOR_MANAGEMENT ClientMessage to its window. This allows clients to
@@ -184,10 +170,6 @@ typedef struct {
   /* hooked functions */
   DrawWindowProc drawWindow;
   DrawWindowTextureProc drawWindowTexture;
-
-  /* profiles attached to the screen */
-  unsigned long nProfiles;
-  PrivColorProfile *profile;
 
   /* compiz fragement function */
   int function, param, unit;
@@ -321,7 +303,7 @@ static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
 static const char *md5string(const uint8_t md5[16])
 {
 	static char buffer[33];
-	uint32_t * h = md5;
+	const uint32_t * h = (const uint32_t*)md5;
 
 	buffer[0] = 0;
 	sprintf( buffer, "%x%x%x%x", h[0],h[1],h[2],h[3]);
@@ -449,145 +431,70 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
   return NULL;
 }
 
-static unsigned long screenProfileCount(PrivScreen *ps)
-{
-	unsigned long ret = 0;
-
-	for (unsigned long i = 0; i < ps->nProfiles; ++i) {
-		if (ps->profile[i].refCount > 0)
-			++ret;
-	}
-
-	return ret;
-}
-
-/**
- * Search the profile database to find the profile with the given UUID.
- * Returns the array index at which the profile is, if not found then returns
- * PrivScreen::nProfiles
- */
-static unsigned long findProfileIndex(CompScreen *s, const uint8_t md5[16])
-{
-	PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-
-	for (unsigned long i = 0; i < ps->nProfiles; ++i) {
-		if (ps->profile[i].refCount > 0 && memcmp(md5, ps->profile[i].md5, 16) == 0)
-			return i;
-	}
-
-#if defined(PLUGIN_DEBUG)
-	oyCompLogMessage(s->display, "compicc", CompLogLevelDebug, "Could not find profile with MD5 '%s'", md5string(md5));
-#endif
-
-	return ps->nProfiles;
-}
-
-
 /**
  * Called when new profiles have been attached to the root window. Fetches
  * these and saves them in a local database.
  */ 
 static void updateScreenProfiles(CompScreen *s)
 {
-	PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+  CompDisplay *d = s->display;
+  PrivDisplay *pd = compObjectGetPrivate((CompObject *) d);
 
-	CompDisplay *d = s->display;
-	PrivDisplay *pd = compObjectGetPrivate((CompObject *) d);
-
-	/* Fetch the profiles */
-	unsigned long nBytes;
-        int screen = DefaultScreen( s->display->display );
-	void *data = fetchProperty(d->display,
+  /* Fetch the profiles */
+  unsigned long nBytes;
+  int screen = DefaultScreen( s->display->display );
+  void *data = fetchProperty(d->display,
                                    XRootWindow( s->display->display, screen ),
                                    pd->netColorProfiles,
                                    XA_CARDINAL, &nBytes, True);
-	if (data == NULL)
-		return;
+  if (data == NULL)
+    return;
 
-	/* Grow or shring the array as needed. */
-	unsigned long count = XcolorProfileCount(data, nBytes);
-	unsigned long usedSlots = screenProfileCount(ps);
+  uint32_t exact_hash_size = 0;
+  oyHash_s * entry;
+  oyProfile_s * prof = NULL;
+  oyStructList_s * cache = pluginGetPrivatesCache();
+  int n = 0;
 
-	if (usedSlots + count > ps->nProfiles) {
- 		PrivColorProfile *ptr = realloc(ps->profile, (usedSlots + count) * sizeof(PrivColorProfile));
-		if (ptr == NULL)
-			goto out;
+  /* Grow or shring the array as needed. */
+  unsigned long count = XcolorProfileCount(data, nBytes);
 
-		memset(ptr + ps->nProfiles, 0, (usedSlots + count - ps->nProfiles) * sizeof(PrivColorProfile));
+  /* Copy the profiles into the array, and create the Oyranos handles. */
+  XcolorProfile *profile = data;
+  for (unsigned long i = 0; i < count; ++i)
+  {
+    const char * hash_text = md5string(profile->md5);
+    entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
+    prof = (oyProfile_s *) oyHash_GetPointer( entry, oyOBJECT_PROFILE_S);
+    /* XcolorProfile::length == 0 means the clients wants to delete the profile. */
+    if( ntohl(profile->length) )
+    {
+      if(!prof)
+      {
+        prof = oyProfile_FromMem( htonl(profile->length), profile + 1, 0,NULL );
 
-		ps->nProfiles = usedSlots + count;
-		ps->profile = ptr;
-	} else if (usedSlots + count < ps->nProfiles / 2) {
-		unsigned long index = 0;
-		for (unsigned long i = 0; i < ps->nProfiles; ++i) {
-			if (ps->profile[i].refCount > 0)
-				memmove(ps->profile + index++, ps->profile + i, sizeof(PrivColorProfile));
-		}
+        if(!prof)
+        {
+          /* If creating the Oyranos profile fails, don't try to parse any further profiles and just quit. */
+          oyCompLogMessage(d, "compicc", CompLogLevelWarn, "Couldn't create Oyranos profile %s", hash_text );
+          goto out;
+        }
 
-		assert(index == usedSlots);
+        oyHash_SetPointer( entry, (oyStruct_s*) prof );
+        ++n;
+      }
+    }
 
- 		PrivColorProfile *ptr = realloc(ps->profile, (ps->nProfiles / 2) * sizeof(PrivColorProfile));
-		if (ptr == NULL)
-			goto out;
-
-		ps->nProfiles = ps->nProfiles / 2;
-		ps->profile = ptr;
-
-		memset(ptr + usedSlots, 0, (ps->nProfiles - usedSlots) * sizeof(PrivColorProfile));
-	}
-
-	/* Copy the profiles into the array, and create the Oyranos handles. */
-	XcolorProfile *profile = data;
-	for (unsigned long i = 0; i < count; ++i) {
-		unsigned long index = findProfileIndex(s, profile->md5);
-
-		/* XcolorProfile::length == 0 means the clients wants to delete the profile. */
-		if (ntohl(profile->length) == 0) {
-			/* Profile not found. Probably a ref-count issue inside clients. Should I throw a warning? */
-			if (index == ps->nProfiles)
-				continue;
-
-			--ps->profile[index].refCount;
-
-			/* If refcount drops to zero, destroy the Oyranos object. */
-			if (ps->profile[index].refCount == 0)
-			  oyProfile_Release( &ps->profile[index].oy_profile);
-		} else {
-			if (index == ps->nProfiles) {
-				/* Profile doesn't exist in our array, find a new free slot. */
-				for (unsigned long i = 0; i < ps->nProfiles; ++i) {
-					if (ps->profile[i].refCount > 0)
-						continue;
-
-					ps->profile[i].oy_profile = oyProfile_FromMem( htonl(profile->length), profile + 1, 0, NULL );
-
-					/* If creating the Oyranos profile fails, don't try to parse any further profiles and just quit. */
-					if (ps->profile[i].oy_profile == NULL) {
-						oyCompLogMessage(d, "compicc", CompLogLevelWarn, "Couldn't create Oyranos profile%s", "");
-						goto out;
-					}
-
-					memcpy(ps->profile[i].md5, profile->md5, 16);
-					ps->profile[i].refCount = 1;
-
-					break;
-				}
-			} else {
-				/* Profile alreade exists in the array, just increase the ref count. */
-				++ps->profile[index].refCount;
-			}
-		}
-
-		profile = XcolorProfileNext(profile);
-	}
+    profile = XcolorProfileNext(profile);
+  }
 
 #if defined(PLUGIN_DEBUG)
-	oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Updated screen profiles, %d existing plus %d updates leading to %d profiles in %d slots",
-		       usedSlots, count, screenProfileCount(ps), ps->nProfiles);
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Added %d of %d screen profiles",
+		      n, count);
 #endif
 
-out:
-	XFree(data);
+  out:
+  XFree(data);
 }
 
 static unsigned long colour_desktop_stencil_id_pool = 0;
@@ -662,6 +569,11 @@ static void updateWindowRegions(CompWindow *w)
 
 out:
   XFree(data);
+#if defined(PLUGIN_DEBUG)
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Added %d regions",
+		      count);
+#endif
+
 }
 
 
@@ -981,8 +893,6 @@ void oyArray2d_ToPPM_( oyStruct_s *, const char * );
 int          oyImage_PpmWrite        ( oyImage_s         * image,
                                        const char        * file_name,
                                        const char        * free_text );
-
-oyStructList_s * colour_table_cache = NULL;
 
 static void    setupColourTables     ( CompScreen        * s,
                                        oyConfig_s        * device,
@@ -1363,7 +1273,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
                                        &n, False);
           if(data && n)
           {
-            const char * tmp = 0;
             oyProfile_s * sp = oyProfile_FromMem( n, data, 0,0 ); /* server p */
             oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
 
@@ -1934,9 +1843,6 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
 
   WRAP(ps, s, drawWindow, pluginDrawWindow);
   WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
-
-  ps->nProfiles = 0;
-  ps->profile = NULL;
 
   ps->function = 0;
   ps->function_2 = 0;
