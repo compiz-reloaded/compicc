@@ -321,9 +321,10 @@ static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
 static const char *md5string(const uint8_t md5[16])
 {
 	static char buffer[33];
+	uint32_t * h = md5;
 
-	for (int i = 0; i < 16; ++i)
-		sprintf(buffer + i * 2, "%02x", md5[i]);
+	buffer[0] = 0;
+	sprintf( buffer, "%x%x%x%x", h[0],h[1],h[2],h[3]);
 
 	return buffer;
 }
@@ -475,7 +476,7 @@ static unsigned long findProfileIndex(CompScreen *s, const uint8_t md5[16])
 	}
 
 #if defined(PLUGIN_DEBUG)
-	oyCompLogMessage(s->display, "color", CompLogLevelDebug, "Could not find profile with MD5 '%s'", md5string(md5));
+	oyCompLogMessage(s->display, "compicc", CompLogLevelDebug, "Could not find profile with MD5 '%s'", md5string(md5));
 #endif
 
 	return ps->nProfiles;
@@ -562,7 +563,7 @@ static void updateScreenProfiles(CompScreen *s)
 
 					/* If creating the Oyranos profile fails, don't try to parse any further profiles and just quit. */
 					if (ps->profile[i].oy_profile == NULL) {
-						oyCompLogMessage(d, "color", CompLogLevelWarn, "Couldn't create Oyranos profile%s", "");
+						oyCompLogMessage(d, "compicc", CompLogLevelWarn, "Couldn't create Oyranos profile%s", "");
 						goto out;
 					}
 
@@ -581,7 +582,7 @@ static void updateScreenProfiles(CompScreen *s)
 	}
 
 #if defined(PLUGIN_DEBUG)
-	oyCompLogMessage(d, "color", CompLogLevelDebug, "Updated screen profiles, %d existing plus %d updates leading to %d profiles in %d slots",
+	oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Updated screen profiles, %d existing plus %d updates leading to %d profiles in %d slots",
 		       usedSlots, count, screenProfileCount(ps), ps->nProfiles);
 #endif
 
