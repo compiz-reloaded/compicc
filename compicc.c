@@ -75,7 +75,7 @@
  */
 #define GRIDPOINTS 64
 
-#define STENCIL_ID (pw->stencil_id*ps->nContexts + i + 1)
+#define STENCIL_ID ( 1 + pw->stencil_id * (ps->nContexts + i) + j )
 
 #if defined(PLUGIN_DEBUG)
 #define DBG  printf("%s:%d %s() %.02f\n", DBG_ARGS);
@@ -229,10 +229,13 @@ void           cleanDisplayEDID      ( CompScreen        * s );
 static int     cleanScreenProfile    ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
+static int     netDisplayAdvanced    ( CompScreen        * s,
+                                       int                 screen );
 static int     getDeviceProfile      ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        oyConfig_s        * device,
                                        int                 screen );
+oyProfile_s *  profileFromMD5        ( uint8_t           * md5 );
 static void    setupOutputTable      ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen );
@@ -504,13 +507,28 @@ static void updateScreenProfiles(CompScreen *s)
     profile = XcolorProfileNext(profile);
   }
 
-#if defined(PLUGIN_DEBUG)
+#if defined(PLUGIN_DEBUG_)
   oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Added %d of %d screen profiles",
 		      n, count);
 #endif
 
   out:
   XFree(data);
+}
+
+oyProfile_s *  profileFromMD5        ( uint8_t           * md5 )
+{
+  uint32_t exact_hash_size = 0;
+  oyHash_s * entry;
+  oyProfile_s * prof = NULL;
+  oyStructList_s * cache = pluginGetPrivatesCache();
+
+  /* Copy the profiles into the array, and create the Oyranos handles. */
+  const char * hash_text = md5string(md5);
+  entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
+  prof = (oyProfile_s *) oyHash_GetPointer( entry, oyOBJECT_PROFILE_S);
+
+  return prof;
 }
 
 static unsigned long colour_desktop_stencil_id_pool = 0;
@@ -525,9 +543,11 @@ static void updateWindowRegions(CompWindow *w)
 
   CompDisplay *d = w->screen->display;
   PrivDisplay *pd = compObjectGetPrivate((CompObject *) d);
+  PrivScreen *ps = compObjectGetPrivate((CompObject *) w->screen);
 
   /* free existing data structures */
-  for (unsigned long i = 0; i < pw->nRegions; ++i) {
+  for (unsigned long i = 0; i < pw->nRegions; ++i)
+  {
     if (pw->pRegion[i].xRegion != 0) {
       XDestroyRegion(pw->pRegion[i].xRegion);
     }
@@ -540,7 +560,8 @@ static void updateWindowRegions(CompWindow *w)
 
   /* fetch the regions */
   unsigned long nBytes;
-  void *data = fetchProperty(d->display, w->id, pd->netColorRegions, XA_CARDINAL, &nBytes, False);
+  void *data = fetchProperty( d->display, w->id, pd->netColorRegions,
+                              XA_CARDINAL, &nBytes, False );
 
   /* allocate the list */
   unsigned long count = 1;
@@ -560,11 +581,40 @@ static void updateWindowRegions(CompWindow *w)
   Region wRegion = pw->pRegion[count-1].xRegion;
   for (unsigned long i = 0; i < (count - 1); ++i)
   {
+    uint8_t n[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     pw->pRegion[i].xRegion = convertRegion( d->display, ntohl(region->region) );
     memcpy( pw->pRegion[i].md5, region->md5, 16 );
 
     /* substract a application region from the window region */
     XSubtractRegion( wRegion, pw->pRegion[i].xRegion, wRegion );
+
+    if(memcmp(region->md5,n,16) != 0)
+    {
+      pw->pRegion[i].cc = (PrivColorContext*)calloc(1,sizeof(PrivColorContext));
+
+      if(!pw->pRegion[i].cc)
+        goto out;
+
+      if(ps && ps->nContexts > 0)
+      {
+        pw->pRegion[i].cc->dst_profile = oyProfile_Copy(
+                                           ps->contexts[0].cc.dst_profile, 0 );
+
+        if(!pw->pRegion[i].cc->dst_profile)
+        {
+          printf( DBG_STRING "output 0 not ready\n",
+                  DBG_ARGS );
+          continue;
+        }
+        pw->pRegion[i].cc->src_profile = profileFromMD5(region->md5);
+
+        pw->pRegion[i].cc->output_name = strdup(ps->contexts[0].cc.output_name);
+      } else
+        printf( DBG_STRING "output_name: %s\n",
+                DBG_ARGS, ps->contexts[0].cc.output_name);
+      if(pw->pRegion[i].cc->src_profile)
+        setupColourTable( pw->pRegion[i].cc, netDisplayAdvanced(w->screen, 0) );
+    }
 
     region = XcolorRegionNext(region);
   }
@@ -572,8 +622,10 @@ static void updateWindowRegions(CompWindow *w)
   pw->nRegions = count;
   pw->active = 1;
   if(pw->nRegions > 1)
+  {
     pw->stencil_id = ++colour_desktop_stencil_id_pool;
-  else
+    colour_desktop_stencil_id_pool += pw->nRegions;
+  } else
     pw->stencil_id = 0;
 
 
@@ -583,7 +635,7 @@ static void updateWindowRegions(CompWindow *w)
 
 out:
   XFree(data);
-#if defined(PLUGIN_DEBUG)
+#if defined(PLUGIN_DEBUG_)
   if(count > 1)
   oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Added %d regions",
 		      count);
@@ -908,13 +960,14 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
     {
       int flags = 0;
 
-      oyProfile_s * src_profile = 0,
+      oyProfile_s * src_profile = ccontext->src_profile,
                   * dst_profile = ccontext->dst_profile;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
 
-      src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+      if(!src_profile)
+        src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
 
       if(!src_profile)
         oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
@@ -1031,35 +1084,21 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
     } else {
       oyCompLogMessage( NULL, "compicc", CompLogLevelInfo,
-                      DBG_STRING "Output %s: no profile",
+                      DBG_STRING "Output \"%s\": no profile",
                       DBG_ARGS, ccontext->output_name);
     }
 
 }
 
-static void    setupOutputTable      ( CompScreen        * s,
-                                       oyConfig_s        * device,
+static int     netDisplayAdvanced    ( CompScreen        * s,
                                        int                 screen )
 {
-  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-  PrivColorOutput * output = &ps->contexts[screen];
   CompDisplay * d = s->display;
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   unsigned long nBytes;
   char * opt = 0;
   int advanced = 0;
   Window root = RootWindow( s->display->display, 0 );
-
-
-  if(!colour_desktop_can)
-    return;
-
-
-  output->cc.src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
-  if(!output->cc.src_profile)
-        oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
-             DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
-             DBG_ARGS, output->name );
 
   /* optionally set advanced options from Oyranos */
   opt = fetchProperty( s->display->display, root, pd->netDisplayAdvanced,
@@ -1072,7 +1111,29 @@ static void    setupOutputTable      ( CompScreen        * s,
   if(opt)
         XFree( opt ); opt = 0;
 
-  setupColourTable( &output->cc, advanced );
+  return advanced;
+}
+
+static void    setupOutputTable      ( CompScreen        * s,
+                                       oyConfig_s        * device,
+                                       int                 screen )
+{
+  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+  PrivColorOutput * output = &ps->contexts[screen];
+
+
+  if(!colour_desktop_can)
+    return;
+
+
+  output->cc.src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+  output->cc.output_name = strdup(output->name);
+  if(!output->cc.src_profile)
+    oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
+             DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
+             DBG_ARGS, output->name );
+
+  setupColourTable( &output->cc, netDisplayAdvanced( s, screen ) );
 }
 
 static void freeOutput( PrivScreen *ps )
@@ -1489,9 +1550,9 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   /* Disable color mask as we won't want to draw anything */
   glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
-  //for( j = 0; j < pw->nRegions - 1; ++j )
+  for( j = 0; j < pw->nRegions; ++j )
   {
-    PrivColorRegion * window_region = pw->pRegion +  pw->nRegions - 1; //j;
+    PrivColorRegion * window_region = pw->pRegion + j;
     Region aRegion = absoluteRegion( w, window_region->xRegion);
 
     for( i = 0; i < ps->nContexts; ++i )
@@ -1574,7 +1635,8 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   } else
     glEnable(GL_SCISSOR_TEST);
 
-  for(int i = 0; i < ps->nContexts; ++i)
+  int i,j;
+  for(i = 0; i < ps->nContexts; ++i)
   {
     Region tmp = 0;
     Region screen = 0;
@@ -1586,57 +1648,70 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     if(WINDOW_INVISIBLE(w))
       goto cleanDrawTexture;
 
-    /* get the window region to find zero sized ones */
-    PrivColorRegion * window_region = pw->pRegion + pw->nRegions - 1;
-    tmp = absoluteRegion( w, window_region->xRegion);
-    screen = XCreateRegion();
-    XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
-    intersection = XCreateRegion();
+    for( j = 0; j < pw->nRegions; ++j )
+    {
+      /* get the window region to find zero sized ones */
+      PrivColorRegion * window_region = pw->pRegion + j;
+      tmp = absoluteRegion( w, window_region->xRegion);
+      screen = XCreateRegion();
+      XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
+      intersection = XCreateRegion();
 
-    /* create intersection of window and monitor */
-    XIntersectRegion( screen, tmp, intersection );
+      /* create intersection of window and monitor */
+      XIntersectRegion( screen, tmp, intersection );
 
-    BOX * b = &intersection->extents;
+      PrivColorContext * c = window_region->cc;
+      // TODO
+      if(j == pw->nRegions - 1)
+      {
+        c = &ps->contexts[i].cc;
+        if(!c)
+          oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+                    DBG_STRING "No CLUT found for screen %d / %d / %d",
+                    DBG_ARGS, screen, ps->nContexts, j );
+      }
 
-    if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
-      goto cleanDrawTexture;
+      BOX * b = &intersection->extents;
 
-    PrivColorContext * c = &ps->contexts[i].cc;
-    /* Set the environment variables */
-    glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 0, 
+      if(!c || (b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0))
+        goto cleanDrawTexture;
+
+      /* Set the environment variables */
+      glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 0, 
                                 c->scale, c->scale, c->scale, 1.0);
-    glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 1,
+      glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 1,
                                 c->offset, c->offset, c->offset, 0.0);
 
-    if(c->glTexture)
-    {
-      /* Activate the 3D texture */
-      (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
-      glEnable(GL_TEXTURE_3D);
-      glBindTexture(GL_TEXTURE_3D, c->glTexture);
-      (*s->activeTexture) (GL_TEXTURE0_ARB);
+      if(c->glTexture)
+      {
+        /* Activate the 3D texture */
+        (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
+        glEnable(GL_TEXTURE_3D);
+        glBindTexture(GL_TEXTURE_3D, c->glTexture);
+        (*s->activeTexture) (GL_TEXTURE0_ARB);
+      }
+
+      /* Only draw where the stencil value matches the window and output */
+      glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
+
+
+      /* Now draw the window texture */
+      UNWRAP(ps, s, drawWindowTexture);
+      if(c->dst_profile && c->glTexture)
+        (*s->drawWindowTexture) (w, texture, &fa, mask);
+      else
+        /* ignore the shader */
+        (*s->drawWindowTexture) (w, texture, attrib, mask);
+      WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
+
+      cleanDrawTexture:
+      if(intersection)
+        XDestroyRegion( intersection );
+      if(tmp)
+        XDestroyRegion( tmp );
+      if(screen)
+        XDestroyRegion( screen );
     }
-
-    /* Only draw where the stencil value matches the window and output */
-    glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
-
-
-    /* Now draw the window texture */
-    UNWRAP(ps, s, drawWindowTexture);
-    if(c->dst_profile && c->glTexture)
-      (*s->drawWindowTexture) (w, texture, &fa, mask);
-    else
-      /* ignore the shader */
-      (*s->drawWindowTexture) (w, texture, attrib, mask);
-    WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
-
-    cleanDrawTexture:
-    if(intersection)
-      XDestroyRegion( intersection );
-    if(tmp)
-      XDestroyRegion( tmp );
-    if(screen)
-      XDestroyRegion( screen );
   }
 
   /* Deactivate the 3D texture */
@@ -1703,7 +1778,8 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   const char * my_id = "compicc",
-             * my_capabilities = "|NCR|V0.3|"; /* _NET_COLOR_REGIONS */
+             * my_capabilities = "|NCP|NCR|V0.3|"; /* _NET_COLOR_REGIONS
+                                                    * _NET_COLOR_PROFILES */
   unsigned long n = 0;
   char * data = 0;
   const char * old_atom = 0;
