@@ -75,7 +75,7 @@
  */
 #define GRIDPOINTS 64
 
-#define STENCIL_ID (pw->stencil_id*ps->nCcontexts + i + 1)
+#define STENCIL_ID (pw->stencil_id*ps->nContexts + i + 1)
 
 #if defined(PLUGIN_DEBUG)
 #define DBG  printf("%s:%d %s() %.02f\n", DBG_ARGS);
@@ -104,6 +104,21 @@ static int colour_desktop_can = 1;
 static time_t net_color_desktop_last_time = 0;
 
 /**
+ *  All data to create and use a color conversion.
+ *  Included are OpenGL texture, the source ICC profile for reference and the
+ *  target profile for the used monitor.
+ */
+typedef struct {
+  oyProfile_s * src_profile;         /* the data profile or device link */
+  oyProfile_s * dst_profile;         /* the monitor profile or none */
+  char * output_name;                /* the intented output device */
+  GLushort clut[GRIDPOINTS][GRIDPOINTS][GRIDPOINTS][3]; /* lookup table */
+  GLuint glTexture;                  /* texture reference */
+  GLfloat scale, offset;             /* texture parameters */
+  int ref;                           /* reference counter */
+} PrivColorContext;
+
+/**
  * The XserverRegion is dereferenced only when the client sends a
  * _NET_COLOR_MANAGEMENT ClientMessage to its window. This allows clients to
  * change the region as the window is resized and later send _N_C_M to tell the
@@ -116,6 +131,8 @@ static time_t net_color_desktop_last_time = 0;
 typedef struct {
   /* These members are only valid when this region is part of the
    * active stack range. */
+  uint8_t md5[16];
+  PrivColorContext * cc;
   Region xRegion;
 } PrivColorRegion;
 
@@ -126,10 +143,7 @@ typedef struct {
  */
 typedef struct {
   char name[32];
-  oyProfile_s * oy_profile;
-  GLushort clut[GRIDPOINTS][GRIDPOINTS][GRIDPOINTS][3];
-  GLuint glTexture;
-  GLfloat scale, offset;
+  PrivColorContext cc;
   XRectangle xRect;
 } PrivColorOutput;
 
@@ -176,8 +190,8 @@ typedef struct {
   int function_2, param_2, unit_2;
 
   /* XRandR outputs and the associated profiles */
-  unsigned long nCcontexts;
-  PrivColorOutput *ccontexts;
+  unsigned long nContexts;
+  PrivColorOutput *contexts;
 } PrivScreen;
 
 typedef struct {
@@ -547,7 +561,7 @@ static void updateWindowRegions(CompWindow *w)
   for (unsigned long i = 0; i < (count - 1); ++i)
   {
     pw->pRegion[i].xRegion = convertRegion( d->display, ntohl(region->region) );
-
+    memcpy( pw->pRegion[i].md5, region->md5, 16 );
 
     /* substract a application region from the window region */
     XSubtractRegion( wRegion, pw->pRegion[i].xRegion, wRegion );
@@ -570,6 +584,7 @@ static void updateWindowRegions(CompWindow *w)
 out:
   XFree(data);
 #if defined(PLUGIN_DEBUG)
+  if(count > 1)
   oyCompLogMessage(d, "compicc", CompLogLevelDebug, "Added %d regions",
 		      count);
 #endif
@@ -597,7 +612,7 @@ static void updateWindowOutput(CompWindow *w)
     addWindowDamage(w);
 }
 
-static void cdCreateTexture( PrivColorOutput *ccontext )
+static void cdCreateTexture( PrivColorContext *ccontext )
 {
     glBindTexture(GL_TEXTURE_3D, ccontext->glTexture);
 
@@ -798,7 +813,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen )
 {
-  PrivColorOutput * output = &ps->ccontexts[screen];
+  PrivColorOutput * output = &ps->contexts[screen];
   oyOption_s * o = 0;
   oyRectangle_s * r = 0;
   const char * device_name = 0;
@@ -842,14 +857,8 @@ static int     getDeviceProfile      ( CompScreen        * s,
        strcpy( output->name, num );
     }
 
-    o = oyConfig_Find( device, "icc_profile" );
+    oyProfile_Release( &output->cc.dst_profile );
 
-    output->oy_profile = (oyProfile_s*) 
-                                  oyOption_StructGet( o, oyOBJECT_PROFILE_S );
-
-    oyProfile_Release( &output->oy_profile );
-
-    if(!output->oy_profile)
     {
       oyOptions_s * options = 0;
       oyOptions_SetFromText( &options,
@@ -858,22 +867,22 @@ static int     getDeviceProfile      ( CompScreen        * s,
       oyOptions_SetFromText( &options,
                    "//"OY_TYPE_STD"/config/icc_profile.net_color_region_target",
                                        "yes", OY_CREATE_NEW );
-      t_err = oyDeviceGetProfile( device, options, &output->oy_profile );
+      t_err = oyDeviceGetProfile( device, options, &output->cc.dst_profile );
       oyOptions_Release( &options );
     }
 
-    if(output->oy_profile)
+    if(output->cc.dst_profile)
     {
       /* check that no sRGB is delivered */
       if(t_err)
       {
         oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
-        if(oyProfile_Equal( web, output->oy_profile ))
+        if(oyProfile_Equal( web, output->cc.dst_profile ))
         {
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                       DBG_STRING "Output %s ignoring fallback %d",
                       DBG_ARGS, output->name, error);
-          oyProfile_Release( &output->oy_profile );
+          oyProfile_Release( &output->cc.dst_profile );
           error = 1;
         }
         oyProfile_Release( &web );
@@ -899,7 +908,7 @@ static void    setupColourTables     ( CompScreen        * s,
                                        int                 screen )
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-  PrivColorOutput * output = &ps->ccontexts[screen];
+  PrivColorOutput * output = &ps->contexts[screen];
   CompDisplay * d = s->display;
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   oyConversion_s * cc;
@@ -912,12 +921,12 @@ static void    setupColourTables     ( CompScreen        * s,
   if(!colour_desktop_can)
     return;
 
-    if (output->oy_profile)
+    if (output->cc.dst_profile)
     {
       int flags = 0;
 
       oyProfile_s * src_profile = 0,
-                  * dst_profile = output->oy_profile;
+                  * dst_profile = output->cc.dst_profile;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
@@ -940,10 +949,10 @@ static void    setupColourTables     ( CompScreen        * s,
         XFree( opt ); opt = 0;
 
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
-                                             output->clut,
+                                             output->cc.clut,
                                              pixel_layout, src_profile, 0 );
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
-                                             output->clut,
+                                             output->cc.clut,
                                              pixel_layout, dst_profile, 0 );
 
       oyProfile_Release( &src_profile );
@@ -991,7 +1000,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyFilterGraph_Release( &cc_graph );
 
       if(clut)
-        memcpy( output->clut, clut->array2d[0], 
+        memcpy( output->cc.clut, clut->array2d[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       else
       {
@@ -1006,7 +1015,7 @@ static void    setupColourTables     ( CompScreen        * s,
               in[2] = floor((double) b / (GRIDPOINTS - 1) * 65535.0 + 0.5);
               for(int j = 0; j < 3; ++j)
                 /* BGR */
-                output->clut[b][g][r][j] = in[j];
+                output->cc.clut[b][g][r][j] = in[j];
             }
           }
         }
@@ -1024,7 +1033,7 @@ static void    setupColourTables     ( CompScreen        * s,
           return;
         }
 
-        memcpy( clut->array2d[0], output->clut,
+        memcpy( clut->array2d[0], output->cc.clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
@@ -1041,7 +1050,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyImage_Release( &image_out );
       oyConversion_Release( &cc );
 
-      cdCreateTexture( output );
+      cdCreateTexture( &output->cc );
 
     } else {
       oyCompLogMessage( s->display, "compicc", CompLogLevelInfo,
@@ -1053,17 +1062,17 @@ static void    setupColourTables     ( CompScreen        * s,
 
 static void freeOutput( PrivScreen *ps )
 {
-  if (ps->nCcontexts > 0)
+  if (ps->nContexts > 0)
   {
-    for (unsigned long i = 0; i < ps->nCcontexts; ++i)
+    for (unsigned long i = 0; i < ps->nContexts; ++i)
     {
-      if(ps->ccontexts[i].oy_profile)
-        oyProfile_Release( &ps->ccontexts[i].oy_profile );
-      if(ps->ccontexts[i].glTexture)
-        glDeleteTextures( 1, &ps->ccontexts[i].glTexture );
-      ps->ccontexts[i].glTexture = 0;
+      if(ps->contexts[i].cc.dst_profile)
+        oyProfile_Release( &ps->contexts[i].cc.dst_profile );
+      if(ps->contexts[i].cc.glTexture)
+        glDeleteTextures( 1, &ps->contexts[i].cc.glTexture );
+      ps->contexts[i].cc.glTexture = 0;
     }
-    free(ps->ccontexts);
+    free(ps->contexts);
   }
 }
 
@@ -1166,21 +1175,24 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
 
   if(init)
   {
-    ps->nCcontexts = n;
-    ps->ccontexts = malloc(ps->nCcontexts * sizeof(PrivColorOutput));
-    memset( ps->ccontexts, 0, ps->nCcontexts * sizeof(PrivColorOutput));
+    int i;
+    ps->nContexts = n;
+    ps->contexts = (PrivColorOutput*)calloc( ps->nContexts,
+                                             sizeof(PrivColorOutput ));
+    for(i = 0; i < n; ++i)
+      ps->contexts[i].cc.ref = 1;
     cleanDisplayEDID( s );
   }
 
   if(colour_desktop_can)
-  for (unsigned long i = 0; i < ps->nCcontexts; ++i)
+  for (unsigned long i = 0; i < ps->nContexts; ++i)
   {
     device = oyConfigs_Get( devices, i );
 
     if(init)
       error = getDeviceProfile( s, ps, device, i );
 
-    if(ps->ccontexts[i].oy_profile)
+    if(ps->contexts[i].cc.dst_profile)
     {
       moveICCprofileAtoms( s, i, set );
       setupColourTables ( s, device, i );
@@ -1188,7 +1200,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     {
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "No profile found on desktops %d/%d 0x%lx 0x%lx",
-                  DBG_ARGS, i, ps->nCcontexts, &ps->ccontexts[i], ps->ccontexts[i].oy_profile);
+                  DBG_ARGS, i, ps->nContexts, &ps->contexts[i], ps->contexts[i].cc.dst_profile);
     }
 
     oyConfig_Release( &device );
@@ -1291,14 +1303,14 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
             if(sp)
             {
-              if(ps->nCcontexts > screen)
+              if(ps->nContexts > screen)
               {
-                oyProfile_Release( &ps->ccontexts[screen].oy_profile );
-                ps->ccontexts[screen].oy_profile = sp;
+                oyProfile_Release( &ps->contexts[screen].cc.dst_profile );
+                ps->contexts[screen].cc.dst_profile = sp;
               } else
                 oyCompLogMessage( s->display, "compicc",CompLogLevelWarn,
-                    DBG_STRING "ccontexts not ready for screen %d / %d",
-                    DBG_ARGS, screen, ps->nCcontexts );
+                    DBG_STRING "contexts not ready for screen %d / %d",
+                    DBG_ARGS, screen, ps->nContexts );
               
               changeProperty ( d->display,
                                da, XA_CARDINAL,
@@ -1352,7 +1364,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   }
 
   /* initialise */
-  if(s && ps && s->nOutputDev != ps->nCcontexts)
+  if(s && ps && s->nOutputDev != ps->nContexts)
   {
     updateOutputConfiguration( s, TRUE);
   }
@@ -1414,7 +1426,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 {
   CompScreen *s = w->screen;
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-  int i;
+  int i,j;
 
   /* check every 10 seconds */
   time_t  cutime;         /* Time since epoch */
@@ -1454,9 +1466,6 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   if( !pw->stencil_id )
     return status;
 
-  PrivColorRegion * window_region = pw->pRegion + pw->nRegions - 1;
-  Region aRegion = absoluteRegion( w, window_region->xRegion);
-
   glEnable(GL_STENCIL_TEST);
 
   /* Replace the stencil value in places where we'd draw something */
@@ -1465,14 +1474,19 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   /* Disable color mask as we won't want to draw anything */
   glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
-  for( i = 0; i < ps->nCcontexts; ++i )
+  //for( j = 0; j < pw->nRegions - 1; ++j )
   {
+    PrivColorRegion * window_region = pw->pRegion +  pw->nRegions - 1; //j;
+    Region aRegion = absoluteRegion( w, window_region->xRegion);
+
+    for( i = 0; i < ps->nContexts; ++i )
+    {
     /* Each region gets its own stencil value */
     glStencilFunc(GL_ALWAYS, STENCIL_ID, ~0);
 
     /* intersect window with monitor */
     Region screen = XCreateRegion();
-    XUnionRectWithRegion( &ps->ccontexts[i].xRect, screen, screen );    
+    XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
     Region intersection = XCreateRegion();
     XIntersectRegion( screen, aRegion, intersection );
     BOX * b = &intersection->extents;
@@ -1494,14 +1508,15 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
     cleanDrawWindow:
     XDestroyRegion( intersection );
     XDestroyRegion( screen );
+    }
+
+    XDestroyRegion( aRegion ); aRegion = 0;
   }
 
   /* Reset the color mask */
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
   glDisable(GL_STENCIL_TEST);
-
-  XDestroyRegion( aRegion ); aRegion = 0;
 
 
   return status;
@@ -1544,13 +1559,13 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   } else
     glEnable(GL_SCISSOR_TEST);
 
-  for(int i = 0; i < ps->nCcontexts; ++i)
+  for(int i = 0; i < ps->nContexts; ++i)
   {
     Region tmp = 0;
     Region screen = 0;
     Region intersection = 0;
     /* draw the texture over the whole monitor to affect wobbly windows */
-    XRectangle * r = &ps->ccontexts[i].xRect;
+    XRectangle * r = &ps->contexts[i].xRect;
     glScissor( r->x, s->height - r->y - r->height, r->width, r->height);
 
     if(WINDOW_INVISIBLE(w))
@@ -1560,7 +1575,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     PrivColorRegion * window_region = pw->pRegion + pw->nRegions - 1;
     tmp = absoluteRegion( w, window_region->xRegion);
     screen = XCreateRegion();
-    XUnionRectWithRegion( &ps->ccontexts[i].xRect, screen, screen );    
+    XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
     intersection = XCreateRegion();
 
     /* create intersection of window and monitor */
@@ -1571,7 +1586,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
       goto cleanDrawTexture;
 
-    PrivColorOutput * c = &ps->ccontexts[i];
+    PrivColorContext * c = &ps->contexts[i].cc;
     /* Set the environment variables */
     glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 0, 
                                 c->scale, c->scale, c->scale, 1.0);
@@ -1593,7 +1608,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
     /* Now draw the window texture */
     UNWRAP(ps, s, drawWindowTexture);
-    if(c->oy_profile && c->glTexture)
+    if(c->dst_profile && c->glTexture)
       (*s->drawWindowTexture) (w, texture, &fa, mask);
     else
       /* ignore the shader */
@@ -1748,12 +1763,12 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
    *  This is only a guess.
    */
   int attached_profiles = 0;
-  for(int i = 0; i < ps->nCcontexts; ++i)
-    attached_profiles += ps->ccontexts[i].oy_profile ? 1:0;
+  for(int i = 0; i < ps->nContexts; ++i)
+    attached_profiles += ps->contexts[i].cc.dst_profile ? 1:0;
 
   int transform_n = 0;
-  for(int i = 0; i < ps->nCcontexts; ++i)
-    transform_n += ps->ccontexts[i].glTexture ? 1:0;
+  for(int i = 0; i < ps->nContexts; ++i)
+    transform_n += ps->contexts[i].cc.glTexture ? 1:0;
 
   if( (atom_time + 10) < net_color_desktop_last_time ||
       request == 2 )
@@ -1790,11 +1805,11 @@ clean_updateNetColorDesktopAtom:
   net_color_desktop_last_time = cutime;
 
   if(colour_desktop_can == 0)
-    for (unsigned long i = 0; i < ps->nCcontexts; ++i)
+    for (unsigned long i = 0; i < ps->nContexts; ++i)
     {
-      if(ps->ccontexts[i].glTexture)
-        glDeleteTextures( 1, &ps->ccontexts[i].glTexture );
-      ps->ccontexts[i].glTexture = 0;
+      if(ps->contexts[i].cc.glTexture)
+        glDeleteTextures( 1, &ps->contexts[i].cc.glTexture );
+      ps->contexts[i].cc.glTexture = 0;
     }
 
   return status;
@@ -1833,7 +1848,7 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   int screen = DefaultScreen( s->display->display );
 #endif
   fprintf( stderr, DBG_STRING"dev %d contexts %ld \n", DBG_ARGS,
-          s->nOutputDev, ps->nCcontexts );
+          s->nOutputDev, ps->nContexts );
     
 
   GLint stencilBits = 0;
@@ -1857,8 +1872,8 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
                   RROutputPropertyNotifyMask);
 #endif
 
-  /* initialisation is done in pluginHandleEvent() by checking ps->nCcontexts */
-  ps->nCcontexts = 0;
+  /* initialisation is done in pluginHandleEvent() by checking ps->nContexts */
+  ps->nContexts = 0;
 
   return TRUE;
 }
@@ -1923,11 +1938,11 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
   n = oyConfigs_Count( devices );
 
   /* switch profile atoms back */
-  for(int i = 0; i < ps->nCcontexts; ++i)
+  for(int i = 0; i < ps->nContexts; ++i)
   {
     device = oyConfigs_Get( devices, i );
 
-    if(ps->ccontexts[i].oy_profile)
+    if(ps->contexts[i].cc.dst_profile)
       moveICCprofileAtoms( s, i, init );
 
     oyConfig_Release( &device );
