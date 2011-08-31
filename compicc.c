@@ -547,11 +547,9 @@ static void updateWindowRegions(CompWindow *w)
   if(data)
     count += XcolorRegionCount(data, nBytes + 1);
 
-  pw->pRegion = malloc(count * sizeof(PrivColorRegion));
+  pw->pRegion = (PrivColorRegion*) calloc(count,sizeof(PrivColorRegion));
   if (pw->pRegion == NULL)
     goto out;
-
-  memset(pw->pRegion, 0, count * sizeof(PrivColorRegion));
 
   /* get the complete windows region and put it at the end */
   pw->pRegion[count-1].xRegion = windowRegion( w );
@@ -641,7 +639,7 @@ static int     hasScreenProfile      ( CompScreen        * s,
 {
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) );
   Atom a;
   oyPointer data;
   unsigned long n = 0;
@@ -672,7 +670,7 @@ static int     cleanScreenProfile    ( CompScreen        * s,
 {
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) );
   Atom a;
 
   if(!icc_profile_atom) return 0;
@@ -711,8 +709,8 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = calloc( 1024, sizeof(char) ),
-       * icc_colour_server_profile_atom = calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) ),
+       * icc_colour_server_profile_atom = (char*)calloc( 1024, sizeof(char) );
   Atom a,da, source_atom, target_atom;
 
   oyPointer source;
@@ -899,11 +897,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
 
   return error;
 }
-
-void oyArray2d_ToPPM_( oyStruct_s *, const char * );
-int          oyImage_PpmWrite        ( oyImage_s         * image,
-                                       const char        * file_name,
-                                       const char        * free_text );
 
 static void    setupColourTable      ( PrivColorContext  * ccontext,
                                        int                 advanced )
@@ -1284,7 +1277,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       {
         int screen = 0;
         int ignore_profile = 0;
-        char * icc_colour_server_profile_atom = malloc(1024);
+        char * icc_colour_server_profile_atom = (char*)malloc(1024);
         char num[12];
         Atom da;
         unsigned long n = 0;
@@ -1795,7 +1788,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if( (atom_time + 10) < net_color_desktop_last_time ||
       request == 2 )
   {
-    char * atom_text = malloc(1024);
+    char * atom_text = (char*)malloc(1024);
     if(!atom_text) goto clean_updateNetColorDesktopAtom;
     sprintf( atom_text, "%d %ld %s %s",
              (int)pid, (long)cutime,
