@@ -233,9 +233,11 @@ static int     getDeviceProfile      ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        oyConfig_s        * device,
                                        int                 screen );
-static void    setupColourTables     ( CompScreen        * s,
+static void    setupOutputTable      ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen );
+static void    setupColourTable      ( PrivColorContext  * ccontext,
+                                       int                 advanced );
 static void changeProperty           ( Display           * display,
                                        Atom                target_atom,
                                        int                 type,
@@ -903,30 +905,18 @@ int          oyImage_PpmWrite        ( oyImage_s         * image,
                                        const char        * file_name,
                                        const char        * free_text );
 
-static void    setupColourTables     ( CompScreen        * s,
-                                       oyConfig_s        * device,
-                                       int                 screen )
+static void    setupColourTable      ( PrivColorContext  * ccontext,
+                                       int                 advanced )
 {
-  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-  PrivColorOutput * output = &ps->contexts[screen];
-  CompDisplay * d = s->display;
-  PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
   oyConversion_s * cc;
   int error = 0;
-  unsigned long nBytes;
-  char * opt = 0;
-  Window root = RootWindow( s->display->display, 0 );
 
-
-  if(!colour_desktop_can)
-    return;
-
-    if (output->cc.dst_profile)
+    if (ccontext->dst_profile)
     {
       int flags = 0;
 
       oyProfile_s * src_profile = 0,
-                  * dst_profile = output->cc.dst_profile;
+                  * dst_profile = ccontext->dst_profile;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
@@ -934,25 +924,19 @@ static void    setupColourTables     ( CompScreen        * s,
       src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
 
       if(!src_profile)
-        oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
+        oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
              DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
-             DBG_ARGS, output->name );
+             DBG_ARGS, ccontext->output_name );
 
       /* optionally set advanced options from Oyranos */
-      opt = fetchProperty(s->display->display, root, pd->netDisplayAdvanced, XA_STRING, &nBytes, False);
-      if(oy_debug)
-        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
-                DBG_ARGS, opt?opt:"", nBytes);
-      if(opt && nBytes && atoi(opt) > 0)
+      if(advanced)
         flags = oyOPTIONATTRIBUTE_ADVANCED;
-      if(opt)
-        XFree( opt ); opt = 0;
 
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
-                                             output->cc.clut,
+                                             ccontext->clut,
                                              pixel_layout, src_profile, 0 );
       oyImage_s * image_out= oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
-                                             output->cc.clut,
+                                             ccontext->clut,
                                              pixel_layout, dst_profile, 0 );
 
       oyProfile_Release( &src_profile );
@@ -961,18 +945,18 @@ static void    setupColourTables     ( CompScreen        * s,
                                                       options, 0 );
       if (cc == NULL)
       {
-        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "no conversion created for %s",
-                      DBG_ARGS, output->name);
+                      DBG_ARGS, ccontext->output_name);
         return;
       }
 
       error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, 0);
       if(error)
       {
-        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "oyConversion_Correct(///icc,%d,0) failed %s",
-                      DBG_ARGS, flags, output->name);
+                      DBG_ARGS, flags, ccontext->output_name);
         return;
       }
 
@@ -1000,7 +984,7 @@ static void    setupColourTables     ( CompScreen        * s,
       oyFilterGraph_Release( &cc_graph );
 
       if(clut)
-        memcpy( output->cc.clut, clut->array2d[0], 
+        memcpy( ccontext->clut, clut->array2d[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       else
       {
@@ -1015,7 +999,7 @@ static void    setupColourTables     ( CompScreen        * s,
               in[2] = floor((double) b / (GRIDPOINTS - 1) * 65535.0 + 0.5);
               for(int j = 0; j < 3; ++j)
                 /* BGR */
-                output->cc.clut[b][g][r][j] = in[j];
+                ccontext->clut[b][g][r][j] = in[j];
             }
           }
         }
@@ -1027,13 +1011,13 @@ static void    setupColourTables     ( CompScreen        * s,
 
         if(error)
         {
-          oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "oyConversion_RunPixels() error: %d %s",
-                      DBG_ARGS, error, output->name);
+                      DBG_ARGS, error, ccontext->output_name);
           return;
         }
 
-        memcpy( clut->array2d[0], output->cc.clut,
+        memcpy( clut->array2d[0], ccontext->clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
@@ -1050,14 +1034,52 @@ static void    setupColourTables     ( CompScreen        * s,
       oyImage_Release( &image_out );
       oyConversion_Release( &cc );
 
-      cdCreateTexture( &output->cc );
+      cdCreateTexture( ccontext );
 
     } else {
-      oyCompLogMessage( s->display, "compicc", CompLogLevelInfo,
+      oyCompLogMessage( NULL, "compicc", CompLogLevelInfo,
                       DBG_STRING "Output %s: no profile",
-                      DBG_ARGS, output->name);
+                      DBG_ARGS, ccontext->output_name);
     }
 
+}
+
+static void    setupOutputTable      ( CompScreen        * s,
+                                       oyConfig_s        * device,
+                                       int                 screen )
+{
+  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+  PrivColorOutput * output = &ps->contexts[screen];
+  CompDisplay * d = s->display;
+  PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
+  unsigned long nBytes;
+  char * opt = 0;
+  int advanced = 0;
+  Window root = RootWindow( s->display->display, 0 );
+
+
+  if(!colour_desktop_can)
+    return;
+
+
+  output->cc.src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+  if(!output->cc.src_profile)
+        oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
+             DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
+             DBG_ARGS, output->name );
+
+  /* optionally set advanced options from Oyranos */
+  opt = fetchProperty( s->display->display, root, pd->netDisplayAdvanced,
+                       XA_STRING, &nBytes, False );
+  if(oy_debug)
+        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
+                DBG_ARGS, opt?opt:"", nBytes);
+  if(opt && nBytes && atoi(opt) > 0)
+        advanced = atoi(opt);
+  if(opt)
+        XFree( opt ); opt = 0;
+
+  setupColourTable( &output->cc, advanced );
 }
 
 static void freeOutput( PrivScreen *ps )
@@ -1195,7 +1217,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     if(ps->contexts[i].cc.dst_profile)
     {
       moveICCprofileAtoms( s, i, set );
-      setupColourTables ( s, device, i );
+      setupOutputTable( s, device, i );
     } else
     {
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
