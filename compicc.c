@@ -120,7 +120,7 @@ typedef struct {
 
 /**
  * The XserverRegion is dereferenced only when the client sends a
- * _NET_COLOR_MANAGEMENT ClientMessage to its window. This allows clients to
+ * _ICC_COLOR_MANAGEMENT ClientMessage to its window. This allows clients to
  * change the region as the window is resized and later send _N_C_M to tell the
  * plugin to re-fetch the region from the server.
  * The profile is resolved as soon as the client uploads the regions into the
@@ -645,7 +645,7 @@ out:
 
 
 /**
- * Called when the window target (_NET_COLOR_TARGET) has been changed.
+ * Called when the window target (_ICC_COLOR_TARGET) has been changed.
  */
 static void updateWindowOutput(CompWindow *w)
 {
@@ -800,7 +800,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
     source = fetchProperty( s->display->display, root, source_atom, XA_CARDINAL,
                             &source_n, False);
 
-    /* _NET_COLOR_DESKTOP atom is set before any _ICC_PROFILE(_xxx) changes. */
+    /* _ICC_COLOR_DESKTOP atom is set before any _ICC_PROFILE(_xxx) changes. */
     if(init)
     {
       updateNetColorDesktopAtom( s, ps, 2 );
@@ -1742,10 +1742,10 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
 }
 
 /**
- *  Check and update the _NET_COLOR_DESKTOP status atom. It is used to 
+ *  Check and update the _ICC_COLOR_DESKTOP status atom. It is used to 
  *  communicate to the colour server.
  *
- *  The _NET_COLOR_DESKTOP atom is a string with following usages:
+ *  The _ICC_COLOR_DESKTOP atom is a string with following usages:
  *  - uniquely identify the colour server
  *  - tell the name of the colour server
  *  - tell the colour server is alive
@@ -1754,11 +1754,11 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
  *  The second section contains time since epoch GMT as returned by time(NULL).
  *  The thired section contains the bar '|' separated and surrounded
  *  capabilities:
- *    - NCP  _NET_COLOR_PROFILES
- *    - NCT  _NET_COLOR_TARGET
- *    - NCM  _NET_COLOR_MANAGEMENT
- *    - NCR  _NET_COLOR_REGIONS
- *    - _NET_COLOR_DESKTOP is omitted
+ *    - ICP  _ICC_COLOR_PROFILES
+ *    - ICT  _ICC_COLOR_TARGET
+ *    - ICM  _ICC_COLOR_MANAGEMENT
+ *    - ICR  _ICC_COLOR_REGIONS
+ *    - _ICC_COLOR_DESKTOP is omitted
  *    - V0.3 indicates version compliance to the _ICC_Profile in X spec
  *  The fourth section contains the server name identifier.
  *
@@ -1778,8 +1778,8 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   const char * my_id = "compicc",
-             * my_capabilities = "|NCP|NCR|V0.3|"; /* _NET_COLOR_REGIONS
-                                                    * _NET_COLOR_PROFILES */
+             * my_capabilities = "|ICP|ICR|V0.3|"; /* _ICC_COLOR_REGIONS
+                                                    * _ICC_COLOR_PROFILES */
   unsigned long n = 0;
   char * data = 0;
   const char * old_atom = 0;
@@ -1822,7 +1822,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   {
     if(old_atom && atom_time + 60 < cutime)
       oyCompLogMessage( d, "compicc", CompLogLevelWarn,
-                    DBG_STRING "\n!!! Found old _NET_COLOR_DESKTOP pid: %s.\n"
+                    DBG_STRING "\n!!! Found old _ICC_COLOR_DESKTOP pid: %s.\n"
                     "Eigther there was a previous crash or your setup can be double colour corrected.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
     /* check for taking over of colour service */
@@ -1832,13 +1832,13 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
          request == 2)
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
-                    DBG_STRING "\nTaking over colour service from old _NET_COLOR_DESKTOP: %s.",
+                    DBG_STRING "\nTaking over colour service from old _ICC_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
       } else
       if(atom_time > net_color_desktop_last_time)
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
-                    DBG_STRING "\nGiving colour service to _NET_COLOR_DESKTOP: %s.",
+                    DBG_STRING "\nGiving colour service to _ICC_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
      
         colour_desktop_can = 0;
@@ -1846,7 +1846,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
     } else
     if(old_atom)
       oyCompLogMessage( d, "compicc", CompLogLevelWarn,
-                    DBG_STRING "\nTaking over colour service from old _NET_COLOR_DESKTOP: %s.",
+                    DBG_STRING "\nTaking over colour service from old _ICC_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
   }
 
@@ -1918,14 +1918,14 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
 
   printf( DBG_STRING "HUHU\n", DBG_ARGS );
 
-  pd->netColorManagement = XInternAtom(d->display, "_NET_COLOR_MANAGEMENT", False);
+  pd->netColorManagement = XInternAtom(d->display, "_ICC_COLOR_MANAGEMENT", False);
 
-  pd->netColorProfiles = XInternAtom(d->display, "_NET_COLOR_PROFILES", False);
-  pd->netColorRegions = XInternAtom(d->display, "_NET_COLOR_REGIONS", False);
-  pd->netColorTarget = XInternAtom(d->display, "_NET_COLOR_TARGET", False);
-  pd->netColorDesktop = XInternAtom(d->display, "_NET_COLOR_DESKTOP", False);
+  pd->netColorProfiles = XInternAtom(d->display, "_ICC_COLOR_PROFILES", False);
+  pd->netColorRegions = XInternAtom(d->display, "_ICC_COLOR_REGIONS", False);
+  pd->netColorTarget = XInternAtom(d->display, "_ICC_COLOR_TARGET", False);
+  pd->netColorDesktop = XInternAtom(d->display, "_ICC_COLOR_DESKTOP", False);
   pd->netDesktopGeometry = XInternAtom(d->display, "_NET_DESKTOP_GEOMETRY", False);
-  pd->netDisplayAdvanced = XInternAtom(d->display, "_NET_COLOR_DISPLAY_ADVANCED", False);
+  pd->netDisplayAdvanced = XInternAtom(d->display, "_ICC_COLOR_DISPLAY_ADVANCED", False);
 
   return TRUE;
 }

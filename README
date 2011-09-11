@@ -30,10 +30,11 @@ Compicc
     to tell CompICC not to colour correct a certain region of their window to 
     do advanced colour management of their own. After updating these colour 
     management aware applications they will work the same as before. Without 
-    updating to the net-color spec they see all monitors as in sRGB, which is 
-    not wrong for most of them. Calibration tools need to support the net-color 
-    spec to continue to work as expected. The only workaround for them is to 
-    disable CompICC during calibration and ICC profiling.
+    updating to the X Color Management specification they see all monitors as 
+    in sRGB, which is not wrong for most of them. Calibration tools need to 
+    support the X Color Management specification to continue to work as 
+    expected. The only workaround for them is to disable CompICC during 
+    calibration and ICC profiling.
 
 
 Internet:

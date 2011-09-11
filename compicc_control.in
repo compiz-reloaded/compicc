@@ -11,4 +11,4 @@ Description: Compiz ICC Colour Server
  instant desktop colour correction on GPU with compiz,
  multi monitor support,
  ICC Profile in X support,
- net-color DRAFT2 support
+ X Color Management 0.3 DRAFT1 support
