@@ -341,6 +341,63 @@ if [ -n "$LIBXML2" ] && [ $LIBXML2 -gt 0 ]; then
   fi
 fi
 
+if [ -n "$YAJL" ] && [ $YAJL -gt 0 ]; then
+  name="yajl"
+  minversion=1
+  version=`pkg-config --modversion $name 2>/dev/null`
+  url="http://lloyd.github.com/yajl/"
+  HAVE_LIB=0
+  ID=YAJL
+  ID_H="$ID"_H
+  ID_LIBS="$ID"_LIBS
+  pkg-config  --atleast-version=$minversion $name
+  if [ $? = 0 ]; then
+    HAVE_LIB=1
+    echo "#define HAVE_$ID 1" >> $CONF_H
+    echo "$ID = 1" >> $CONF
+    echo "$ID_H = `pkg-config --cflags $name | sed \"$STRIPOPT\"`" >> $CONF
+    echo "$ID_LIBS = `pkg-config --libs $name | sed \"$STRIPOPT\"`" >> $CONF
+  else
+    l=$name
+    rm -f tests/libtest$EXEC_END
+    $CXX $CFLAGS -I$includedir $ROOT_DIR/tests/lib_test.cxx $LDFLAGS -L/usr/X11R6/lib$BARCH -L/usr/lib$BARCH -L$libdir -l$l -o tests/libtest 2>/dev/null
+    if [ -f tests/libtest ]; then
+      HAVE_LIB=1
+      echo "#define HAVE_$ID 1" >> $CONF_H
+      echo "$ID = 1" >> $CONF
+      echo "$ID_H =" >> $CONF
+      echo "$ID_LIBS = -l$l" >> $CONF
+      rm tests/libtest$EXEC_END
+    fi
+  fi
+
+  # search for yajl_version.h header file
+    $CC $CFLAGS -I$includedir $ROOT_DIR/tests/yajl.c $LDFLAGS -L/usr/X11R6/lib$BARCH -l$l -o tests/yajl_test 2>/dev/null
+    if [ ! -f tests/yajl_test ]; then
+      $CC $CFLAGS -I$includedir $ROOT_DIR/tests/yajl.c $LDFLAGS -L/usr/X11R6/lib$BARCH -l$l -o tests/yajl_test >> $CONF_LOG
+      echo "YAJL_VERSION = -DYAJL_VERSION=10000" >> $CONF
+    fi
+
+  if [ $HAVE_LIB -ne 0 ]; then
+    if [ "$version" != "" ]; then
+      echo_="$name	$version		detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    else
+      echo_="`tests/yajl_test$EXEC_END`          detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    fi
+  else
+    if [ $YAJL -eq 1 ]; then
+      echo_="!!! ERROR: no or too old $name found, !!!"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      ERROR=1
+    else
+      echo_="    Warning: no or too old $name found,"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      WARNING=1
+    fi
+    echo_="  need at least version $minversion, download: $url"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+
+    rm tests/yajl_test$EXEC_END
+  fi
+fi
+
 if [ -n "$LCMS" ] && [ $LCMS -gt 0 ]; then
   name="lcms"
   libname=$name
@@ -546,6 +603,9 @@ if [ -n "$XCM" ] && [ $XCM -gt 0 ]; then
     libname=$name
     minversion=0.7
     ID=XCM
+    TESTER=$XCM
+  minversion=0.4
+  url="http://sf.net/projects/oyranos/files/libXcm"
 
     ID_H="$ID"_H
     ID_LIBS="$ID"_LIBS
@@ -571,8 +631,14 @@ if [ -n "$XCM" ] && [ $XCM -gt 0 ]; then
         done
       fi
     elif [ $OSUNAME = "Linux" ]; then
-      echo_="X CM not found in"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
-      echo_="  $pc_package.pc"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      if [ $TESTER -eq 1 ]; then
+        echo_="!!! ERROR: no or too old $name found, !!!"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+        ERROR=1
+      else
+        echo_="    Warning: no or too old $name found,"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+        WARNING=1
+      fi
+      echo_="  need at least version $minversion, download: $url"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
     fi
 fi
 
@@ -837,7 +903,7 @@ if [ -n "$X11" ] && [ $X11 -gt 0 ]; then
   if [ -n "$MAKEFILE_DIR" ]; then
     for i in $MAKEFILE_DIR; do
       test -f "$ROOT_DIR/$i/makefile".in && echo "X11_INCL=\$(XF86VMODE_INC) \$(XINERAMA_INC) \$(XRANDR_INC)" >> "$i/makefile"
-      test -f "$ROOT_DIR/$i/makefile".in && echo "X11_LIBS=\$(X11_LIB_PATH) -lX11 $X_ADD_LIBS \$(XCM_LIBS)" >> "$i/makefile"
+      test -f "$ROOT_DIR/$i/makefile".in && echo "X11_LIBS=\$(X11_LIB_PATH)  \$(XCM_LIBS) $X_ADD_LIBS" >> "$i/makefile"
     done
   fi
 fi
@@ -908,6 +974,31 @@ if [ -n "$FTGL" ] && [ $FTGL -gt 0 ]; then
       rm tests/libtest$EXEC_END
     else
       echo_="  no or too old FTGL found, need FTGL to render text in OpenGL"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    fi
+  fi
+fi
+
+if [ -n "$FONTCONFIG" ] && [ $FONTCONFIG -gt 0 ]; then
+  l=fontconfig 
+  pkg-config $l
+  if [ $? = 0 ]; then
+    echo_="FONTCONFIG	`pkg-config --modversion $l`	detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+    echo "#define HAVE_FONTCONFIG 1" >> $CONF_H
+    echo "FONTCONFIG = 1" >> $CONF
+    echo "FONTCONFIG_H = `pkg-config --cflags $l | sed \"$STRIPOPT\"`" >> $CONF
+    echo "FONTCONFIG_LIBS = `pkg-config --libs $l | sed \"$STRIPOPT\"`" >> $CONF
+  else
+    rm -f tests/libtest$EXEC_END
+    $CXX $CFLAGS -I$includedir $ROOT_DIR/tests/lib_test.cxx $LDFLAGS -L/usr/X11R6/lib$BARCH -L/usr/lib$BARCH -L$libdir -l$l -o tests/libtest 2>/dev/null
+    if [ -f tests/libtest ]; then
+      echo_="FONTCONFIG              detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
+      echo "#define HAVE_FONTCONFIG 1" >> $CONF_H
+      echo "FONTCONFIG = 1" >> $CONF
+      echo "FONTCONFIG_H =" >> $CONF
+      echo "FONTCONFIG_LIBS = -l$l" >> $CONF
+      rm tests/libtest$EXEC_END
+    else
+      echo_="  no or too old FONTCONFIG found, need FONTCONFIG to render text in OpenGL"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
     fi
   fi
 fi
@@ -1118,7 +1209,7 @@ if [ -n "$DEBUG" ] && [ $DEBUG -gt 0 ]; then
     for i in $MAKEFILE_DIR; do
       if [ "$debug" -eq "1" ]; then
         if [ $OSUNAME = "Darwin" ] || [ $OSUNAME = "Windows" ]; then
-          DEBUG_="-Wall -g -DDEBUG"
+          DEBUG_="-Wall -g -DDEBUG -gdwarf-2"
         else
           DEBUG_="-Wall -g -DDEBUG --pedantic"
         fi
