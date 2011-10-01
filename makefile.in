@@ -42,7 +42,8 @@ TEST_CPP = \
 	tests/openmp_main.c \
 	tests/test_oyranos.c
 
-CPPFILES =
+CPPFILES = \
+	compicc_pp.cpp
 CXXFILES =
 TEST_FILES = $(TEST_CPP) $(TEST_H)
 
@@ -75,7 +76,11 @@ COBJECTS = \
 CPPOBJECTS =	$(CPPFILES)
 CXXOBJECTS =	$(CXXFILES)
 
-OBJECTS = $(CPPFILES:.cpp=.o) $(CXXFILES:.cxx=.o) $(CFILES:.c=.o) $(CFILESC:.c=.o)
+#ifdef COMPIZ_CPP
+OBJECTS = $(CPPFILES:.cpp=.o) $(CXXFILES:.cxx=.o)
+#else
+OBJECTS = $(CFILES:.c=.o) $(CFILESC:.c=.o)
+#endif
 
 CLEAN_OBJECTS = $(OBJECTS)
 
