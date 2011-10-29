@@ -45,6 +45,7 @@
 #include "oyranos_definitions.h" /* ICC Profile in X */
 
 #include <X11/Xcm/Xcm.h>
+#include <X11/Xcm/XcmEvents.h>
 
 
 #define OY_COMPIZ_VERSION (COMPIZ_VERSION_MAJOR * 10000 + COMPIZ_VERSION_MINOR * 100 + COMPIZ_VERSION_MICRO)
@@ -101,7 +102,7 @@ typedef CompBool (*dispatchObjectProc) (CompPlugin *plugin, CompObject *object, 
 static int colour_desktop_can = 1;
 
 /* last check time */
-static time_t net_color_desktop_last_time = 0;
+static time_t icc_color_desktop_last_time = 0;
 
 /**
  *  All data to create and use a color conversion.
@@ -167,15 +168,15 @@ typedef struct {
   HandleEventProc handleEvent;
 
   /* ClientMessage sent by the application */
-  Atom netColorManagement;
+  Atom iccColorManagement;
 
   /* Window properties */
-  Atom netColorProfiles;
-  Atom netColorRegions;
-  Atom netColorTarget;
-  Atom netColorDesktop;
+  Atom iccColorProfiles;
+  Atom iccColorRegions;
+  Atom iccColorTarget;
+  Atom iccColorDesktop;
   Atom netDesktopGeometry;
-  Atom netDisplayAdvanced;
+  Atom iccDisplayAdvanced;
 } PrivDisplay;
 
 typedef struct {
@@ -225,11 +226,10 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
 void           cleanDisplayProfiles  ( CompScreen        * s );
-void           cleanDisplayEDID      ( CompScreen        * s );
 static int     cleanScreenProfile    ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
-static int     netDisplayAdvanced    ( CompScreen        * s,
+static int     getDisplayAdvanced    ( CompScreen        * s,
                                        int                 screen );
 static int     getDeviceProfile      ( CompScreen        * s,
                                        PrivScreen        * ps,
@@ -464,7 +464,7 @@ static void updateScreenProfiles(CompScreen *s)
   int screen = DefaultScreen( s->display->display );
   void *data = fetchProperty(d->display,
                                    XRootWindow( s->display->display, screen ),
-                                   pd->netColorProfiles,
+                                   pd->iccColorProfiles,
                                    XA_CARDINAL, &nBytes, True);
   if (data == NULL)
     return;
@@ -560,7 +560,7 @@ static void updateWindowRegions(CompWindow *w)
 
   /* fetch the regions */
   unsigned long nBytes;
-  void *data = fetchProperty( d->display, w->id, pd->netColorRegions,
+  void *data = fetchProperty( d->display, w->id, pd->iccColorRegions,
                               XA_CARDINAL, &nBytes, False );
 
   /* allocate the list */
@@ -613,7 +613,7 @@ static void updateWindowRegions(CompWindow *w)
         printf( DBG_STRING "output_name: %s\n",
                 DBG_ARGS, ps->contexts[0].cc.output_name);
       if(pw->pRegion[i].cc->src_profile)
-        setupColourTable( pw->pRegion[i].cc, netDisplayAdvanced(w->screen, 0) );
+        setupColourTable( pw->pRegion[i].cc, getDisplayAdvanced(w->screen, 0) );
     }
 
     region = XcolorRegionNext(region);
@@ -658,7 +658,7 @@ static void updateWindowOutput(CompWindow *w)
     XFree(pw->output);
 
   unsigned long nBytes;
-  pw->output = fetchProperty(d->display, w->id, pd->netColorTarget, XA_STRING, &nBytes, False);
+  pw->output = fetchProperty(d->display, w->id, pd->iccColorTarget, XA_STRING, &nBytes, False);
 
   if(!pw->nRegions)
     addWindowDamage(w);
@@ -768,7 +768,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
   oyPointer source;
   oyPointer target;
   unsigned long source_n = 0, target_n = 0;
-  int updated_net_color_desktop_atom = 0;
+  int updated_icc_color_desktop_atom = 0;
 
   snprintf( num, 12, "%d", (int)screen );
   snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
@@ -804,7 +804,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
     if(init)
     {
       updateNetColorDesktopAtom( s, ps, 2 );
-      updated_net_color_desktop_atom = 1;
+      updated_icc_color_desktop_atom = 1;
     }
     if(source_n)
     {
@@ -831,10 +831,10 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       source = oyProfile_GetMem( screen_document_profile, &size, 0, malloc );
       source_n = size;
 
-      if(!updated_net_color_desktop_atom)
+      if(!updated_icc_color_desktop_atom)
       {
         updateNetColorDesktopAtom( s, ps, 2 );
-        updated_net_color_desktop_atom = 1;
+        updated_icc_color_desktop_atom = 1;
       }
       if(source_n)
       {
@@ -1090,7 +1090,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
 }
 
-static int     netDisplayAdvanced    ( CompScreen        * s,
+static int     getDisplayAdvanced    ( CompScreen        * s,
                                        int                 screen )
 {
   CompDisplay * d = s->display;
@@ -1101,10 +1101,10 @@ static int     netDisplayAdvanced    ( CompScreen        * s,
   Window root = RootWindow( s->display->display, 0 );
 
   /* optionally set advanced options from Oyranos */
-  opt = fetchProperty( s->display->display, root, pd->netDisplayAdvanced,
+  opt = fetchProperty( s->display->display, root, pd->iccDisplayAdvanced,
                        XA_STRING, &nBytes, False );
   if(oy_debug)
-        printf( DBG_STRING "netDisplayAdvanced: %s %lu\n",
+        printf( DBG_STRING "iccDisplayAdvanced: %s %lu\n",
                 DBG_ARGS, opt?opt:"", nBytes);
   if(opt && nBytes && atoi(opt) > 0)
         advanced = atoi(opt);
@@ -1133,7 +1133,7 @@ static void    setupOutputTable      ( CompScreen        * s,
              DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
              DBG_ARGS, output->name );
 
-  setupColourTable( &output->cc, netDisplayAdvanced( s, screen ) );
+  setupColourTable( &output->cc, getDisplayAdvanced( s, screen ) );
 }
 
 static void freeOutput( PrivScreen *ps )
@@ -1152,38 +1152,6 @@ static void freeOutput( PrivScreen *ps )
   }
 }
 
-void cleanDisplayEDID( CompScreen *s )
-{
-  int error = 0,
-      n;
-  oyOptions_s * options = 0;
-  oyConfigs_s * devices = 0;
-  oyConfig_s * device = 0;
-
-    /* get number of connected devices */
-    error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
-    n = oyConfigs_Count( devices );
-    oyConfigs_Release( &devices );
-
-    /** Monitor hotplugs can easily mess up the ICC profile to device assigment.
-     *  So first we erase the _ICC_PROFILE(_xxx) to get a clean state.
-     *  We setup the EDID atoms and ICC profiles new.
-     *  The ICC profiles are moved to the right places through the 
-     *  PropertyChange events recieved by the colour server.
-     */
-
-    /* refresh EDID */
-    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
-                                   "list", OY_CREATE_NEW );
-    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
-                                   "refresh", OY_CREATE_NEW );
-    int old_oy_debug = oy_debug;
-    oy_debug = 1;
-    error = oyDeviceGet( OY_TYPE_STD, "monitor", ":0.0", options, &device );
-    oy_debug = old_oy_debug;
-    oyConfig_Release( &device );
-    oyOptions_Release( &options );
-}
 
 void cleanDisplayProfiles( CompScreen *s )
 {
@@ -1199,17 +1167,36 @@ void cleanDisplayProfiles( CompScreen *s )
 
     for(screen = 0; screen < n; ++screen)
     {
-      int server_profile = 0;
+      int server_profile = 1;
       if(hasScreenProfile( s, screen, server_profile ))
-      {
         cleanScreenProfile( s, screen, server_profile );
-      }
-      server_profile = 1;
-      if(hasScreenProfile( s, screen, server_profile ))
-      {
-        cleanScreenProfile( s, screen, server_profile );
-      }
     }
+}
+
+/**
+ * Called when output configuration (or properties) change.
+ */
+static void setupOutputs(CompScreen *s)
+{
+  PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
+  int n;
+
+  /* clean memory */
+  {
+    freeOutput(ps);
+    cleanDisplayProfiles( s );
+  }
+
+  n = s->nOutputDev;
+
+  {
+    int i;
+    ps->nContexts = n;
+    ps->contexts = (PrivColorOutput*)calloc( ps->nContexts,
+                                             sizeof(PrivColorOutput ));
+    for(i = 0; i < n; ++i)
+      ps->contexts[i].cc.ref = 1;
+  }
 }
 
 /**
@@ -1227,13 +1214,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
 
-  /* clean memory */
-  if(init)
-  {
-    freeOutput(ps);
-    cleanDisplayProfiles( s );
-  }
-
   /* allow Oyranos to see modifications made to the compiz Xlib context */
   XFlush( s->display->display );
 
@@ -1248,17 +1228,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   oyOptions_Release( &options );
 
   n = oyConfigs_Count( devices );
-
-  if(init)
-  {
-    int i;
-    ps->nContexts = n;
-    ps->contexts = (PrivColorOutput*)calloc( ps->nContexts,
-                                             sizeof(PrivColorOutput ));
-    for(i = 0; i < n; ++i)
-      ps->contexts[i].cc.ref = 1;
-    cleanDisplayEDID( s );
-  }
 
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
@@ -1313,18 +1282,18 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
 
-    if (event->xproperty.atom == pd->netColorProfiles) {
+    if (event->xproperty.atom == pd->iccColorProfiles) {
       CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       updateScreenProfiles(s);
-    } else if (event->xproperty.atom == pd->netColorRegions) {
+    } else if (event->xproperty.atom == pd->iccColorRegions) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
-    } else if (event->xproperty.atom == pd->netColorTarget) {
+    } else if (event->xproperty.atom == pd->iccColorTarget) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowOutput(w);
 
     /* let possibly others take over the colour server */
-    } else if( event->xproperty.atom == pd->netColorDesktop && atom_name )
+    } else if( event->xproperty.atom == pd->iccColorDesktop && atom_name )
     {
 
       updateNetColorDesktopAtom( s, ps, 0 );
@@ -1410,15 +1379,16 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     /* update for changing geometry */
     } else if (event->xproperty.atom == pd->netDesktopGeometry)
     {
+      setupOutputs( s );
       updateOutputConfiguration(s, TRUE);
-    } else if (event->xproperty.atom == pd->netDisplayAdvanced)
+    } else if (event->xproperty.atom == pd->iccDisplayAdvanced)
     {
       updateOutputConfiguration( s, FALSE );
     }
 
     break;
   case ClientMessage:
-    if (event->xclient.message_type == pd->netColorManagement)
+    if (event->xclient.message_type == pd->iccColorManagement)
     {
       CompWindow *w = findWindowAtDisplay (d, event->xclient.window);
       PrivWindow *pw = compObjectGetPrivate((CompObject *) w);
@@ -1427,24 +1397,15 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     }
     break;
   default:
-#ifdef HAVE_XRANDR
-    if (event->type == d->randrEvent + RRNotify) {
-      XRRNotifyEvent *rrn = (XRRNotifyEvent *) event;
-      CompScreen *s = findScreenAtDisplay(d, rrn->window);
-      {
-        updateOutputConfiguration(s, TRUE);
-      }
-    }
-#endif
     break;
   }
 
   /* initialise */
   if(s && ps && s->nOutputDev != ps->nContexts)
   {
+    setupOutputs( s );
     updateOutputConfiguration( s, TRUE);
   }
- 
 }
 
 /**
@@ -1507,7 +1468,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   /* check every 10 seconds */
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
-  if((cutime - net_color_desktop_last_time > (time_t)10))
+  if((cutime - icc_color_desktop_last_time > (time_t)10))
     updateNetColorDesktopAtom( s, ps, 0 );
 
   UNWRAP(ps, s, drawWindow);
@@ -1807,7 +1768,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   atom_colour_server_name[0] = atom_capabilities_text[0] = '\000';
 
   data = fetchProperty( d->display, RootWindow(d->display,0),
-                        pd->netColorDesktop, XA_STRING, &n, False);
+                        pd->iccColorDesktop, XA_STRING, &n, False);
 
   atom_colour_server_name[0] = 0;
   if(n && data && strlen(data))
@@ -1828,14 +1789,14 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
     /* check for taking over of colour service */
     if(atom_colour_server_name && strcmp(atom_colour_server_name, my_id) != 0)
     {
-      if(atom_time < net_color_desktop_last_time ||
+      if(atom_time < icc_color_desktop_last_time ||
          request == 2)
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nTaking over colour service from old _ICC_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
       } else
-      if(atom_time > net_color_desktop_last_time)
+      if(atom_time > icc_color_desktop_last_time)
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nGiving colour service to _ICC_COLOR_DESKTOP: %s.",
@@ -1861,7 +1822,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   for(int i = 0; i < ps->nContexts; ++i)
     transform_n += ps->contexts[i].cc.glTexture ? 1:0;
 
-  if( (atom_time + 10) < net_color_desktop_last_time ||
+  if( (atom_time + 10) < icc_color_desktop_last_time ||
       request == 2 )
   {
     char * atom_text = (char*)malloc(1024);
@@ -1874,14 +1835,14 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
  
    if(attached_profiles)
       changeProperty( d->display,
-                                pd->netColorDesktop, XA_STRING,
+                                pd->iccColorDesktop, XA_STRING,
                                 (unsigned char*)atom_text,
                                 strlen(atom_text) + 1 );
     else if(old_atom)
     {
       /* switch off the plugin */
       changeProperty( d->display,
-                                pd->netColorDesktop, XA_STRING,
+                                pd->iccColorDesktop, XA_STRING,
                                 (unsigned char*)NULL, 0 );
       colour_desktop_can = 0;
     }
@@ -1893,7 +1854,7 @@ clean_updateNetColorDesktopAtom:
   if(atom_colour_server_name) free(atom_colour_server_name);
   if(atom_capabilities_text) free(atom_capabilities_text);
 
-  net_color_desktop_last_time = cutime;
+  icc_color_desktop_last_time = cutime;
 
   if(colour_desktop_can == 0)
     for (unsigned long i = 0; i < ps->nContexts; ++i)
@@ -1918,14 +1879,14 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
 
   printf( DBG_STRING "HUHU\n", DBG_ARGS );
 
-  pd->netColorManagement = XInternAtom(d->display, "_ICC_COLOR_MANAGEMENT", False);
+  pd->iccColorManagement = XInternAtom(d->display, "_ICC_COLOR_MANAGEMENT", False);
 
-  pd->netColorProfiles = XInternAtom(d->display, "_ICC_COLOR_PROFILES", False);
-  pd->netColorRegions = XInternAtom(d->display, "_ICC_COLOR_REGIONS", False);
-  pd->netColorTarget = XInternAtom(d->display, "_ICC_COLOR_TARGET", False);
-  pd->netColorDesktop = XInternAtom(d->display, "_ICC_COLOR_DESKTOP", False);
+  pd->iccColorProfiles = XInternAtom(d->display, XCM_COLOR_PROFILES, False);
+  pd->iccColorRegions = XInternAtom(d->display, XCM_COLOR_REGIONS, False);
+  pd->iccColorTarget = XInternAtom(d->display, XCM_COLOR_TARGET, False);
+  pd->iccColorDesktop = XInternAtom(d->display, XCM_COLOR_DESKTOP, False);
   pd->netDesktopGeometry = XInternAtom(d->display, "_NET_DESKTOP_GEOMETRY", False);
-  pd->netDisplayAdvanced = XInternAtom(d->display, "_ICC_COLOR_DISPLAY_ADVANCED", False);
+  pd->iccDisplayAdvanced = XInternAtom(d->display, XCM_COLOUR_DESKTOP_ADVANCED, False);
 
   return TRUE;
 }
@@ -2007,7 +1968,7 @@ static CompBool pluginFiniDisplay(CompPlugin *plugin, CompObject *object, void *
 
   /* remove desktop colour management service mark */
   changeProperty( d->display,
-                                pd->netColorDesktop, XA_STRING,
+                                pd->iccColorDesktop, XA_STRING,
                                 (unsigned char*)NULL, 0 );
 
   return TRUE;
