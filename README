@@ -94,15 +94,15 @@ Usage:
     Use ccsm to switch the plugin on. Its named Colour Management, but might be
     translated according to your locale settings.
     Advanced settiging can be activated by setting a root window
-    Atom called _NET_COLOR_DISPLAY_ADVANCED to "1". 
+    Atom called _ICC_COLOR_DISPLAY_ADVANCED to "1". 
     Setting to "0" will nethertheless update the colour transformations in 
     CompICC.
   Example:
-    $ xprop -root -format _NET_COLOR_DISPLAY_ADVANCED 8s -set _NET_COLOR_DISPLAY_ADVANCED  1
+    $ xprop -root -format _ICC_COLOR_DISPLAY_ADVANCED 8s -set _ICC_COLOR_DISPLAY_ADVANCED  1
 
     The desktop colour server can apply proofing and out of gamut marking
     to the whole desktop, except the early colour bind regions, by activating
-    the _NET_COLOR_DISPLAY_ADVANCED atom. This is an very specialised feature. 
+    the _ICC_COLOR_DISPLAY_ADVANCED atom. This is an very specialised feature. 
     Applications can be synchronised by the Oyranos settings.
 
 Trouble:
@@ -114,8 +114,8 @@ Trouble:
 
     If CompIcc runs, but you are not shure if it works, then
     a good idea is to use qcmsevents or xprop to look for the
-    _NET_COLOR_DESKTOP atom. It should be present on the root window.
-    $ xprop -root | grep _NET_COLOR_DESKTOP
+    _ICC_COLOR_DESKTOP atom. It should be present on the root window.
+    $ xprop -root | grep _ICC_COLOR_DESKTOP
     A false colour profile is good for clear diagnostic:
     $ wget http://www.oyranos.org/wiki/images/c/c0/FakeBRG.icc
     $ mv -v FakeBRG.icc ~/.local/shared/color/icc
