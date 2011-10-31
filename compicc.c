@@ -882,7 +882,7 @@ void           cleanDisplay          ( Display           * display )
                                    "unset", OY_CREATE_NEW );
     if(display_name)
     {
-      t = calloc(sizeof(char), strlen(display_name));
+      t = calloc(sizeof(char), strlen(display_name) + 8);
     } else
     {
       display_name = strdup(":0");
