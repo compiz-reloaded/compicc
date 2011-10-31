@@ -15,6 +15,14 @@
 
 
 #include <assert.h>
+#include <math.h>     // floor()
+#include <string.h>   // http://www.opengroup.org/onlinepubs/009695399/functions/strdup.html
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>   // getpid()
+
+#include <stdarg.h>
+#include <icc34.h>
 
 #define GL_GLEXT_PROTOTYPES
 #define _BSD_SOURCE
@@ -31,18 +39,9 @@
 
 #include <compiz-common.h>
 
-#include <assert.h>
-#include <math.h>     // floor()
-#include <string.h>   // http://www.opengroup.org/onlinepubs/009695399/functions/strdup.html
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>   // getpid()
-
-#include <stdarg.h>
-#include <icc34.h>
 #include <alpha/oyranos_alpha.h>
 #include <alpha/oyranos_cmm.h> // oyCMMptr_New
-#include "oyranos_definitions.h" /* ICC Profile in X */
+#include <oyranos_definitions.h> /* ICC Profile in X */
 
 #include <X11/Xcm/Xcm.h>
 #include <X11/Xcm/XcmEvents.h>
@@ -229,6 +228,7 @@ void           cleanDisplayProfiles  ( CompScreen        * s );
 static int     cleanScreenProfile    ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
+void           cleanDisplay          ( Display           * display );
 static int     getDisplayAdvanced    ( CompScreen        * s,
                                        int                 screen );
 static int     getDeviceProfile      ( CompScreen        * s,
@@ -860,6 +860,89 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
   if(icc_colour_server_profile_atom) free(icc_colour_server_profile_atom);
 }
 
+void           cleanDisplay          ( Display           * display )
+{
+  int error = 0,
+      n;
+  oyOptions_s * options = 0;
+  oyConfigs_s * devices = 0;
+  char * display_name = 0, * t;
+  int old_oy_debug, i;
+
+    display_name = strdup(XDisplayString(display));
+    if(display_name && strchr(display_name,'.'))
+    {
+      t = strrchr(display_name,'.');
+      t[0] = 0;
+    }
+
+    /* clean up to 20 displays */
+    error = oyOptions_SetFromText( &options,
+                                   "//"OY_TYPE_STD"/config/command",
+                                   "unset", OY_CREATE_NEW );
+    if(display_name)
+    {
+      t = calloc(sizeof(char), strlen(display_name));
+    } else
+    {
+      display_name = strdup(":0");
+      t = calloc(sizeof(char), 8);
+    }
+
+    if(t && display_name)
+    {
+      for(i = 0; i < 20; ++i)
+      {
+        sprintf( t, "%s.%d", display_name, i );
+        error = oyOptions_SetFromText( &options,
+                                       "//" OY_TYPE_STD "/config/device_name",
+                                       t, OY_CREATE_NEW );
+        error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+        oyConfigs_Release( &devices );
+      }
+    }
+    oyOptions_Release( &options );
+
+
+    /* get number of connected devices */
+    error = oyOptions_SetFromText( &options,
+                                   "//"OY_TYPE_STD"/config/command",
+                                   "list", OY_CREATE_NEW );
+    error = oyOptions_SetFromText( &options,
+                                   "//" OY_TYPE_STD "/config/display_name",
+                                   display_name, OY_CREATE_NEW );
+    error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+    n = oyConfigs_Count( devices );
+    oyConfigs_Release( &devices );
+    oyOptions_Release( &options );
+
+    /** Monitor hotplugs can easily mess up the ICC profile to device assigment.
+     *  So first we erase the _ICC_PROFILE(_xxx) to get a clean state.
+     *  We setup the EDID atoms and ICC profiles new.
+     *  The ICC profiles are moved to the right places through the 
+     *  PropertyChange events recieved by the colour server.
+     */
+
+    /* refresh EDID */
+    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
+                                   "list", OY_CREATE_NEW );
+    sprintf( t, "%s.%d", display_name, 0 );
+    error = oyOptions_SetFromText( &options,
+                                   "//" OY_TYPE_STD "/config/device_name",
+                                   t, OY_CREATE_NEW );
+    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
+                                   "refresh", OY_CREATE_NEW );
+    old_oy_debug = oy_debug;
+    /*oy_debug = 1;*/
+    error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+    oy_debug = old_oy_debug;
+    oyConfigs_Release( &devices );
+    oyOptions_Release( &options );
+
+    free(display_name); display_name = 0;
+    free(t); t = 0;
+}
+
 static int     getDeviceProfile      ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        oyConfig_s        * device,
@@ -1197,6 +1280,11 @@ static void setupOutputs(CompScreen *s)
     for(i = 0; i < n; ++i)
       ps->contexts[i].cc.ref = 1;
   }
+
+  /* allow Oyranos to see modifications made to the compiz Xlib context */
+  XFlush( s->display->display );
+
+  cleanDisplay( s->display->display );
 }
 
 /**
@@ -1257,6 +1345,8 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     forEachWindowOnScreen( s, damageWindow, &all );
   }
 }
+
+
 
 /**
  * CompDisplay::handleEvent
@@ -1397,6 +1487,20 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     }
     break;
   default:
+#ifdef HAVE_XRANDR
+    if (event->type == d->randrEvent + RRNotify)
+    {
+      XRRNotifyEvent *rrn = (XRRNotifyEvent *) event;
+      if(rrn->subtype == RRNotify_OutputChange)
+      {
+        CompScreen *s = findScreenAtDisplay(d, rrn->window);
+        {
+          setupOutputs( s );
+          updateOutputConfiguration(s, TRUE);
+        }
+      }
+    }
+#endif
     break;
   }
 
@@ -1719,6 +1823,7 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
  *    - ICT  _ICC_COLOR_TARGET
  *    - ICM  _ICC_COLOR_MANAGEMENT
  *    - ICR  _ICC_COLOR_REGIONS
+ *    - ICA  _ICC_COLOR_DISPLAY_ADVANCED
  *    - _ICC_COLOR_DESKTOP is omitted
  *    - V0.3 indicates version compliance to the _ICC_Profile in X spec
  *  The fourth section contains the server name identifier.
@@ -1739,7 +1844,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   const char * my_id = "compicc",
-             * my_capabilities = "|ICP|ICR|V0.3|"; /* _ICC_COLOR_REGIONS
+             * my_capabilities = "|ICP|ICR|ICA|V0.3|"; /* _ICC_COLOR_REGIONS
                                                     * _ICC_COLOR_PROFILES */
   unsigned long n = 0;
   char * data = 0;
