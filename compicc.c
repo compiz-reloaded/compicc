@@ -1104,15 +1104,9 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       uint32_t exact_hash_size = 0;
       char * hash_text = 0;
       const char * t = 0;
-      if(icc->core->api4_->oyCMMFilterNode_GetText)
-        hash_text = icc->core->api4_->oyCMMFilterNode_GetText( icc, oyNAME_NICK,
-                                                               malloc );
-      else
-      {
-        t = oyFilterNode_GetText( icc, oyNAME_NICK );
-        if(t)
-          hash_text = strdup(t);
-      }
+      t = oyFilterNode_GetText( icc, oyNAME_NICK );
+      if(t)
+        hash_text = strdup(t);
       oyHash_s * entry;
       oyArray2d_s * clut = NULL;
       oyStructList_s * cache = pluginGetPrivatesCache();
