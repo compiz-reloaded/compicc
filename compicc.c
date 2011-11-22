@@ -1061,6 +1061,11 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       if(advanced)
         flags = oyOPTIONATTRIBUTE_ADVANCED;
 
+      if(oy_debug)
+        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyConversion_Correct(///icc,%d,0) %s %s",
+                      DBG_ARGS, flags, ccontext->output_name,
+                      advanced?"advanced":"");
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
                                              ccontext->clut,
                                              pixel_layout, src_profile, 0 );
@@ -1079,8 +1084,12 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                       DBG_ARGS, ccontext->output_name);
         return;
       }
+      oyOptions_Release( &options );
 
-      error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, 0);
+      error = oyOptions_SetFromText( &options,
+                                     "//"OY_TYPE_STD"/config/display_mode", "1",
+                                     OY_CREATE_NEW );
+      error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, options);
       if(error)
       {
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
