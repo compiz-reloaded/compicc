@@ -876,7 +876,7 @@ void           cleanDisplay          ( Display           * display )
       t[0] = 0;
     }
 
-    /* clean up to 20 displays */
+    /* clean up old displays */
     error = oyOptions_SetFromText( &options,
                                    "//"OY_TYPE_STD"/config/command",
                                    "unset", OY_CREATE_NEW );
@@ -891,13 +891,14 @@ void           cleanDisplay          ( Display           * display )
 
     if(t && display_name)
     {
-      for(i = 0; i < 20; ++i)
+      for(i = 0; i < 200; ++i)
       {
         sprintf( t, "%s.%d", display_name, i );
         error = oyOptions_SetFromText( &options,
                                        "//" OY_TYPE_STD "/config/device_name",
                                        t, OY_CREATE_NEW );
         error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+        if(error != 0) i = 200;
         oyConfigs_Release( &devices );
       }
     }
@@ -1104,9 +1105,11 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       uint32_t exact_hash_size = 0;
       char * hash_text = 0;
       const char * t = 0;
-      t = oyFilterNode_GetText( icc, oyNAME_NICK );
-      if(t)
-        hash_text = strdup(t);
+      {
+        t = oyFilterNode_GetText( icc, oyNAME_NICK );
+        if(t)
+          hash_text = strdup(t);
+      }
       oyHash_s * entry;
       oyArray2d_s * clut = NULL;
       oyStructList_s * cache = pluginGetPrivatesCache();
