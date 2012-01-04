@@ -75,7 +75,15 @@
  */
 #define GRIDPOINTS 64
 
-#define STENCIL_ID ( 1 + pw->stencil_id * (ps->nContexts + i) + j )
+/**
+ *  The stencil ID is a property of each window region to identify the used
+ *  bit plane in the stencil buffer.
+ *  Each screen context obtains a different range of IDs (i).
+ *  j is the actual region in the window.
+ */
+#define STENCIL_ID ( 1 + colour_desktop_region_count * (ps->nContexts + i) + j )
+
+#define HAS_REGIONS(pw) (pw->nRegions > 1)
 
 #if defined(PLUGIN_DEBUG)
 #define DBG  printf("%s:%d %s() %.02f\n", DBG_ARGS);
@@ -195,9 +203,6 @@ typedef struct {
 } PrivScreen;
 
 typedef struct {
-  /* stencil buffer id */
-  unsigned long stencil_id;
-
   /* regions attached to the window */
   unsigned long nRegions;
   PrivColorRegion *pRegion;
@@ -214,6 +219,7 @@ typedef struct {
 
 static Region absoluteRegion(CompWindow *w, Region region);
 static void damageWindow(CompWindow *w, void *closure);
+static void addWindowRegionCount(CompWindow *w, void * count);
 oyPointer  pluginGetPrivatePointer   ( CompObject        * o );
 static int updateNetColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
@@ -531,7 +537,7 @@ oyProfile_s *  profileFromMD5        ( uint8_t           * md5 )
   return prof;
 }
 
-static unsigned long colour_desktop_stencil_id_pool = 0;
+static signed long colour_desktop_region_count = -1;
 
 /**
  * Called when new regions have been attached to a window. Fetches these and
@@ -593,7 +599,11 @@ static void updateWindowRegions(CompWindow *w)
       pw->pRegion[i].cc = (PrivColorContext*)calloc(1,sizeof(PrivColorContext));
 
       if(!pw->pRegion[i].cc)
+      {
+        printf( DBG_STRING "region %lu not ready. Stop!\n",
+                DBG_ARGS, i );
         goto out;
+      }
 
       if(ps && ps->nContexts > 0)
       {
@@ -612,8 +622,12 @@ static void updateWindowRegions(CompWindow *w)
       } else
         printf( DBG_STRING "output_name: %s\n",
                 DBG_ARGS, ps->contexts[0].cc.output_name);
+
       if(pw->pRegion[i].cc->src_profile)
         setupColourTable( pw->pRegion[i].cc, getDisplayAdvanced(w->screen, 0) );
+      else
+        printf( DBG_STRING "region %lu has no source profile!\n",
+                DBG_ARGS, i );
     }
 
     region = XcolorRegionNext(region);
@@ -621,13 +635,6 @@ static void updateWindowRegions(CompWindow *w)
 
   pw->nRegions = count;
   pw->active = 1;
-  if(pw->nRegions > 1)
-  {
-    pw->stencil_id = ++colour_desktop_stencil_id_pool;
-    colour_desktop_stencil_id_pool += pw->nRegions;
-  } else
-    pw->stencil_id = 0;
-
 
   pw->absoluteWindowRectangleOld = oyRectangle_NewWith( 0,0, w->serverWidth, w->serverHeight, 0 );
 
@@ -1382,8 +1389,10 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       updateScreenProfiles(s);
     } else if (event->xproperty.atom == pd->iccColorRegions) {
+      CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
+      colour_desktop_region_count = -1;
     } else if (event->xproperty.atom == pd->iccColorTarget) {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowOutput(w);
@@ -1546,7 +1555,7 @@ static void damageWindow(CompWindow *w, void *closure)
   int * all = closure;
 
   /* scrissored rects seem to be insensible to artifacts from other windows */
-  if((pw->stencil_id || (all && *all == 1)) &&
+  if((HAS_REGIONS(pw) || (all && *all == 1)) &&
       pw->absoluteWindowRectangleOld /*&&
       (w->type ==1 || w->type == 128) &&
       w->resName*/)
@@ -1556,6 +1565,13 @@ static void damageWindow(CompWindow *w, void *closure)
   }
 }
 
+static void addWindowRegionCount(CompWindow *w, void * var)
+{
+  PrivWindow *pw = compObjectGetPrivate((CompObject *) w);
+  signed long * count = var;
+  if(pw && pw->nRegions > 1)
+    *count = *count + pw->nRegions - 1;
+}
 
 /**
  * CompScreen::drawWindow
@@ -1592,6 +1608,13 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   if (pw->active == 0)
     updateWindowRegions( w );
 
+  if(colour_desktop_region_count == -1)
+  {
+    colour_desktop_region_count = 0;
+      forEachWindowOnScreen( s, addWindowRegionCount,
+                             &colour_desktop_region_count );
+  }
+
   oyRectangle_s * rect = oyRectangle_NewWith( w->serverX, w->serverY, w->serverWidth, w->serverHeight, 0 );
 
   /* update to window movements and resizes */
@@ -1610,7 +1633,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   oyRectangle_Release( &rect );
 
   /* skip the stencil drawing for to be scissored windows */
-  if( !pw->stencil_id )
+  if( !HAS_REGIONS(pw) )
     return status;
 
   glEnable(GL_STENCIL_TEST);
@@ -1699,7 +1722,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   if (function)
     addFragmentFunction(&fa, function);
 
-  if( pw->stencil_id )
+  if( HAS_REGIONS(pw) )
   {
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO);
