@@ -75,15 +75,18 @@
  */
 #define GRIDPOINTS 64
 
+static signed long colour_desktop_region_count = -1;
 /**
  *  The stencil ID is a property of each window region to identify the used
  *  bit plane in the stencil buffer.
  *  Each screen context obtains a different range of IDs (i).
  *  j is the actual region in the window.
  */
-#define STENCIL_ID ( 1 + colour_desktop_region_count * (ps->nContexts + i) + j )
+#define STENCIL_ID ( 1 + colour_desktop_region_count * (ps->nContexts + i) + pw->stencil_id_start + j )
 
 #define HAS_REGIONS(pw) (pw->nRegions > 1)
+
+#define WINDOW_BORDER 30
 
 #if defined(PLUGIN_DEBUG)
 #define DBG  printf("%s:%d %s() %.02f\n", DBG_ARGS);
@@ -203,6 +206,10 @@ typedef struct {
 } PrivScreen;
 
 typedef struct {
+  /* start of stencil IDs + nRegions need to be reserved for this window,
+   * inside each monitors stencil ID range */
+  unsigned long stencil_id_start;
+
   /* regions attached to the window */
   unsigned long nRegions;
   PrivColorRegion *pRegion;
@@ -537,8 +544,6 @@ oyProfile_s *  profileFromMD5        ( uint8_t           * md5 )
   return prof;
 }
 
-static signed long colour_desktop_region_count = -1;
-
 /**
  * Called when new regions have been attached to a window. Fetches these and
  * saves them in the local list.
@@ -636,7 +641,8 @@ static void updateWindowRegions(CompWindow *w)
   pw->nRegions = count;
   pw->active = 1;
 
-  pw->absoluteWindowRectangleOld = oyRectangle_NewWith( 0,0, w->serverWidth, w->serverHeight, 0 );
+  pw->absoluteWindowRectangleOld = oyRectangle_NewWith( 0, 0, w->serverWidth,
+                                                        w->serverHeight, 0 );
 
   addWindowDamage(w);
 
@@ -1385,22 +1391,24 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   case PropertyNotify:
     atom_name = XGetAtomName( event->xany.display, event->xproperty.atom );
 
-    if (event->xproperty.atom == pd->iccColorProfiles) {
+    if (event->xproperty.atom == pd->iccColorProfiles)
+    {
       CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       updateScreenProfiles(s);
-    } else if (event->xproperty.atom == pd->iccColorRegions) {
+    } else if (event->xproperty.atom == pd->iccColorRegions)
+    {
       CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
       colour_desktop_region_count = -1;
-    } else if (event->xproperty.atom == pd->iccColorTarget) {
+    } else if (event->xproperty.atom == pd->iccColorTarget)
+    {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowOutput(w);
 
     /* let possibly others take over the colour server */
     } else if( event->xproperty.atom == pd->iccColorDesktop && atom_name )
     {
-
       updateNetColorDesktopAtom( s, ps, 0 );
 
     /* update for a changing monitor profile */
@@ -1569,8 +1577,15 @@ static void addWindowRegionCount(CompWindow *w, void * var)
 {
   PrivWindow *pw = compObjectGetPrivate((CompObject *) w);
   signed long * count = var;
-  if(pw && pw->nRegions > 1)
-    *count = *count + pw->nRegions - 1;
+  if(pw)
+  {
+    if(pw->nRegions > 1)
+    {
+      pw->stencil_id_start = *count;
+      *count = *count + pw->nRegions - 1;
+    } else
+      pw->stencil_id_start = 0;
+  }
 }
 
 /**
@@ -1611,8 +1626,8 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   if(colour_desktop_region_count == -1)
   {
     colour_desktop_region_count = 0;
-      forEachWindowOnScreen( s, addWindowRegionCount,
-                             &colour_desktop_region_count );
+    forEachWindowOnScreen( s, addWindowRegionCount,
+                           &colour_desktop_region_count );
   }
 
   oyRectangle_s * rect = oyRectangle_NewWith( w->serverX, w->serverY, w->serverWidth, w->serverHeight, 0 );
