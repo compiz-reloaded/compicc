@@ -1581,7 +1581,7 @@ static void addWindowRegionCount(CompWindow *w, void * var)
     if(HAS_REGIONS(pw))
     {
       pw->stencil_id_start = *count;
-      *count = *count + pw->nRegions - 1;
+      *count = *count + pw->nRegions;
     } else
       pw->stencil_id_start = 0;
   }
@@ -1667,7 +1667,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
     for( i = 0; i < ps->nContexts; ++i )
     {
       /* Each region gets its own stencil value */
-      glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
+      glStencilFunc(GL_ALWAYS, STENCIL_ID, ~0);
 
       /* intersect window with monitor */
       Region screen = XCreateRegion();
