@@ -82,7 +82,7 @@ static signed long colour_desktop_region_count = -1;
  *  Each screen context obtains a different range of IDs (i).
  *  j is the actual region in the window.
  */
-#define STENCIL_ID ( 1 + colour_desktop_region_count * (ps->nContexts + i) + pw->stencil_id_start + j )
+#define STENCIL_ID ( 1 + colour_desktop_region_count * i + pw->stencil_id_start + j )
 
 #define HAS_REGIONS(pw) (pw->nRegions > 1)
 
@@ -1397,7 +1397,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       updateScreenProfiles(s);
     } else if (event->xproperty.atom == pd->iccColorRegions)
     {
-      CompScreen *s = findScreenAtDisplay(d, event->xproperty.window);
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
       colour_desktop_region_count = -1;
@@ -1579,7 +1578,7 @@ static void addWindowRegionCount(CompWindow *w, void * var)
   signed long * count = var;
   if(pw)
   {
-    if(pw->nRegions > 1)
+    if(HAS_REGIONS(pw))
     {
       pw->stencil_id_start = *count;
       *count = *count + pw->nRegions - 1;
@@ -1630,7 +1629,8 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
                            &colour_desktop_region_count );
   }
 
-  oyRectangle_s * rect = oyRectangle_NewWith( w->serverX, w->serverY, w->serverWidth, w->serverHeight, 0 );
+  oyRectangle_s * rect = oyRectangle_NewWith( w->serverX, w->serverY,
+                                          w->serverWidth, w->serverHeight, 0 );
 
   /* update to window movements and resizes */
   if( !oyRectangle_IsEqual( rect, pw->absoluteWindowRectangleOld ) )
@@ -1666,33 +1666,33 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 
     for( i = 0; i < ps->nContexts; ++i )
     {
-    /* Each region gets its own stencil value */
-    glStencilFunc(GL_ALWAYS, STENCIL_ID, ~0);
+      /* Each region gets its own stencil value */
+      glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
 
-    /* intersect window with monitor */
-    Region screen = XCreateRegion();
-    XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
-    Region intersection = XCreateRegion();
-    XIntersectRegion( screen, aRegion, intersection );
-    BOX * b = &intersection->extents;
-    if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
-      goto cleanDrawWindow;
+      /* intersect window with monitor */
+      Region screen = XCreateRegion();
+      XUnionRectWithRegion( &ps->contexts[i].xRect, screen, screen );    
+      Region intersection = XCreateRegion();
+      XIntersectRegion( screen, aRegion, intersection );
+      BOX * b = &intersection->extents;
+      if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
+        goto cleanDrawWindow;
 
 
-    w->vCount = w->indexCount = 0;
-    (*w->screen->addWindowGeometry) (w, &w->matrix, 1, intersection, region);
+      w->vCount = w->indexCount = 0;
+      (*w->screen->addWindowGeometry) (w, &w->matrix, 1, intersection, region);
 
-    /* If the geometry is non-empty, draw the window */
-    if (w->vCount > 0)
-    {
-      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-      (*w->drawWindowGeometry) (w);
-      glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    }
+      /* If the geometry is non-empty, draw the window */
+      if (w->vCount > 0)
+      {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+        (*w->drawWindowGeometry) (w);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+      }
 
-    cleanDrawWindow:
-    XDestroyRegion( intersection );
-    XDestroyRegion( screen );
+      cleanDrawWindow:
+      XDestroyRegion( intersection );
+      XDestroyRegion( screen );
     }
 
     XDestroyRegion( aRegion ); aRegion = 0;
@@ -1769,6 +1769,9 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       /* create intersection of window and monitor */
       XIntersectRegion( screen, tmp, intersection );
 
+      /* Only draw where the stencil value matches the window and output */
+      glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
+
       PrivColorContext * c = window_region->cc;
       // TODO
       if(j == pw->nRegions - 1)
@@ -1799,10 +1802,6 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
         glBindTexture(GL_TEXTURE_3D, c->glTexture);
         (*s->activeTexture) (GL_TEXTURE0_ARB);
       }
-
-      /* Only draw where the stencil value matches the window and output */
-      glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
-
 
       /* Now draw the window texture */
       UNWRAP(ps, s, drawWindowTexture);
@@ -2025,8 +2024,6 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
     return FALSE;
 
   WRAP(pd, d, handleEvent, pluginHandleEvent);
-
-  printf( DBG_STRING "HUHU\n", DBG_ARGS );
 
   pd->iccColorManagement = XInternAtom(d->display, "_ICC_COLOR_MANAGEMENT", False);
 
