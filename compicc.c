@@ -143,7 +143,7 @@ typedef struct {
   /* These members are only valid when this region is part of the
    * active stack range. */
   uint8_t md5[16];
-  PrivColorContext * cc;
+  PrivColorContext ** cc;
   Region xRegion;
 } PrivColorRegion;
 
@@ -259,7 +259,7 @@ static void changeProperty           ( Display           * display,
                                        int                 type,
                                        void              * data,
                                        unsigned long       size );
-static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool delete);
+static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool del);
 static oyStructList_s * pluginGetPrivatesCache ();
 
 static void *compObjectGetPrivate(CompObject *o)
@@ -447,7 +447,7 @@ static Region windowRegion( CompWindow * w )
 /**
  * Generic function to fetch a window property.
  */
-static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool delete)
+static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigned long *n, Bool del)
 {
   Atom actual;
   int format;
@@ -456,7 +456,7 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
 
   XFlush( dpy );
 
-  int result = XGetWindowProperty(dpy, w, prop, 0, ~0, delete, type, &actual, &format, n, &left, &data);
+  int result = XGetWindowProperty(dpy, w, prop, 0, ~0, del, type, &actual, &format, n, &left, &data);
   if (result == Success)
     return (void *) data;
 
@@ -562,6 +562,24 @@ static void updateWindowRegions(CompWindow *w)
     if (pw->pRegion[i].xRegion != 0) {
       XDestroyRegion(pw->pRegion[i].xRegion);
     }
+    if(pw->pRegion[i].cc)
+    {
+      for(unsigned long j = 0; j < ps->nContexts; ++j)
+      {
+        if(pw->pRegion[i].cc[j])
+        {
+          oyProfile_Release( &pw->pRegion[i].cc[j]->dst_profile );
+          oyProfile_Release( &pw->pRegion[i].cc[j]->src_profile );
+          if(ps->contexts[i].cc.glTexture)
+            glDeleteTextures( 1, &pw->pRegion[i].cc[j]->glTexture );
+          free( pw->pRegion[i].cc[j] );
+          pw->pRegion[i].cc[j] = NULL;
+        }
+        else
+          break;
+      }
+      free( pw->pRegion[i].cc ); pw->pRegion[i].cc = 0;
+    }
   }
   if (pw->nRegions)
     free(pw->pRegion);
@@ -601,38 +619,53 @@ static void updateWindowRegions(CompWindow *w)
 
     if(memcmp(region->md5,n,16) != 0)
     {
-      pw->pRegion[i].cc = (PrivColorContext*)calloc(1,sizeof(PrivColorContext));
-
+      pw->pRegion[i].cc = (PrivColorContext**)calloc( ps->nContexts + 1,
+                                                    sizeof(PrivColorContext*));
       if(!pw->pRegion[i].cc)
       {
-        printf( DBG_STRING "region %lu not ready. Stop!\n",
-                DBG_ARGS, i );
+        printf( DBG_STRING "Could not allocate contexts. Stop!\n",
+                DBG_ARGS );
         goto out;
       }
 
-      if(ps && ps->nContexts > 0)
+      for(unsigned long j = 0; j < ps->nContexts; ++j)
       {
-        pw->pRegion[i].cc->dst_profile = oyProfile_Copy(
-                                           ps->contexts[0].cc.dst_profile, 0 );
+        pw->pRegion[i].cc[j] = (PrivColorContext*) calloc( 1,
+                                                     sizeof(PrivColorContext) );
 
-        if(!pw->pRegion[i].cc->dst_profile)
+        if(!pw->pRegion[i].cc[j])
         {
-          printf( DBG_STRING "output 0 not ready\n",
+          printf( DBG_STRING "Could not allocate context. Stop!\n",
                   DBG_ARGS );
-          continue;
+          goto out;
         }
-        pw->pRegion[i].cc->src_profile = profileFromMD5(region->md5);
 
-        pw->pRegion[i].cc->output_name = strdup(ps->contexts[0].cc.output_name);
-      } else
-        printf( DBG_STRING "output_name: %s\n",
-                DBG_ARGS, ps->contexts[0].cc.output_name);
+        if(ps && ps->nContexts > 0)
+        {
+          pw->pRegion[i].cc[j]->dst_profile = oyProfile_Copy(
+                                            ps->contexts[j].cc.dst_profile, 0 );
 
-      if(pw->pRegion[i].cc->src_profile)
-        setupColourTable( pw->pRegion[i].cc, getDisplayAdvanced(w->screen, 0) );
-      else
-        printf( DBG_STRING "region %lu has no source profile!\n",
-                DBG_ARGS, i );
+          if(!pw->pRegion[i].cc[j]->dst_profile)
+          {
+            printf( DBG_STRING "output 0 not ready\n",
+                    DBG_ARGS );
+            continue;
+          }
+          pw->pRegion[i].cc[j]->src_profile = profileFromMD5(region->md5);
+
+          pw->pRegion[i].cc[j]->output_name = strdup(
+                                               ps->contexts[j].cc.output_name );
+        } else
+          printf( DBG_STRING "output_name: %s\n",
+                  DBG_ARGS, ps->contexts[j].cc.output_name);
+
+        if(pw->pRegion[i].cc[j]->src_profile)
+          setupColourTable( pw->pRegion[i].cc[j],
+                            getDisplayAdvanced(w->screen, 0) );
+        else
+          printf( DBG_STRING "region %lu on %lu has no source profile!\n",
+                  DBG_ARGS, i, j );
+      }
     }
 
     region = XcolorRegionNext(region);
@@ -1352,7 +1385,8 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     {
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "No profile found on desktops %d/%d 0x%lx 0x%lx",
-                  DBG_ARGS, i, ps->nContexts, &ps->contexts[i], ps->contexts[i].cc.dst_profile);
+                  DBG_ARGS, i, ps->nContexts, &ps->contexts[i],
+                  ps->contexts[i].cc.dst_profile);
     }
 
     oyConfig_Release( &device );
@@ -1772,7 +1806,10 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       /* Only draw where the stencil value matches the window and output */
       glStencilFunc(GL_EQUAL, STENCIL_ID, ~0);
 
-      PrivColorContext * c = window_region->cc;
+      PrivColorContext * c = NULL;
+      if(window_region->cc)
+        c = window_region->cc[i];
+
       // TODO
       if(j == pw->nRegions - 1)
       {
