@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
-              2009-2011 (C) Kai-Uwe Behrmann
+              2009-2012 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -1152,7 +1152,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       char * hash_text = 0;
       const char * t = 0;
       {
-        t = oyFilterNode_GetText( icc, oyNAME_NICK );
+        t = oyFilterNode_GetText( icc, oyNAME_NAME );
         if(t)
           hash_text = strdup(t);
       }
@@ -1164,6 +1164,10 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyFilterNode_Release( &icc );
       oyFilterGraph_Release( &cc_graph );
 
+      if(oy_debug)
+        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "clut from cache %s %s",
+                      DBG_ARGS, clut?"obtained":"", hash_text);
       if(clut)
         memcpy( ccontext->clut, clut->array2d[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
