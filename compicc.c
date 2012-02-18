@@ -183,7 +183,7 @@ typedef struct {
   /* Window properties */
   Atom iccColorProfiles;
   Atom iccColorRegions;
-  Atom iccColorTarget;
+  Atom iccColorOutputs;
   Atom iccColorDesktop;
   Atom netDesktopGeometry;
   Atom iccDisplayAdvanced;
@@ -704,7 +704,7 @@ static void updateWindowOutput(CompWindow *w)
     XFree(pw->output);
 
   unsigned long nBytes;
-  pw->output = fetchProperty(d->display, w->id, pd->iccColorTarget, XA_STRING, &nBytes, False);
+  pw->output = fetchProperty(d->display, w->id, pd->iccColorOutputs, XA_STRING, &nBytes, False);
 
   if(!pw->nRegions)
     addWindowDamage(w);
@@ -1438,7 +1438,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowRegions(w);
       colour_desktop_region_count = -1;
-    } else if (event->xproperty.atom == pd->iccColorTarget)
+    } else if (event->xproperty.atom == pd->iccColorOutputs)
     {
       CompWindow *w = findWindowAtDisplay(d, event->xproperty.window);
       updateWindowOutput(w);
@@ -2070,7 +2070,7 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
 
   pd->iccColorProfiles = XInternAtom(d->display, XCM_COLOR_PROFILES, False);
   pd->iccColorRegions = XInternAtom(d->display, XCM_COLOR_REGIONS, False);
-  pd->iccColorTarget = XInternAtom(d->display, XCM_COLOR_TARGET, False);
+  pd->iccColorOutputs = XInternAtom(d->display, XCM_COLOR_OUTPUTS, False);
   pd->iccColorDesktop = XInternAtom(d->display, XCM_COLOR_DESKTOP, False);
   pd->netDesktopGeometry = XInternAtom(d->display, "_NET_DESKTOP_GEOMETRY", False);
   pd->iccDisplayAdvanced = XInternAtom(d->display, XCM_COLOUR_DESKTOP_ADVANCED, False);
