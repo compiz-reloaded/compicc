@@ -11,10 +11,28 @@ Prefix:    %{_prefix}
 %define _disable_ld_no_undefined 1
 
 BuildRequires:       liboyranos-alpha-devel
-Requires:            liboyranos0-monitor compiz
+Requires:            liboyranos0-monitor
+Recommends:          oyranos-monitor
+Recommends:          oyranos-monitor-nvidia
+Recommends:          oyranos-qcmsevents
+BuildRequires:       compiz < 0.9
+Requires:            compiz < 0.9
+Recommends:          compizconfig-settings-manager < 0.9
 
 %if 0%{?suse_version} > 0
-BuildRequires:     gcc-c++ doxygen graphviz pkgconfig  libpng-devel libjpeg-devel xorg-x11-Mesa xorg-x11-Mesa-devel liblcms-devel xdg-utils compiz-devel libXcm-devel netpbm
+BuildRequires:       gcc-c++
+BuildRequires:       doxygen
+BuildRequires:       graphviz
+BuildRequires:       pkgconfig
+BuildRequires:       libpng-devel
+BuildRequires:       libjpeg-devel
+BuildRequires:       xorg-x11-Mesa
+BuildRequires:       xorg-x11-Mesa-devel
+BuildRequires:       xdg-utils
+BuildRequires:       compiz-devel < 0.9
+BuildRequires:       libXcm-devel
+BuildRequires:       netpbm
+BuildRequires:       libtool
 %endif
 %if 0%{?suse_version} > 910
 BuildRequires:  bash binutils diffutils file filesystem findutils flex fontconfig fontconfig-devel freetype2 freetype2-devel gcc gcc-c++ gdbm gdbm-devel gettext gettext-devel glibc glibc-devel grep gzip make patch pkgconfig rpm sed tar util-linux zlib zlib-devel
@@ -26,7 +44,7 @@ BuildRequires:  Mesa Mesa-devel gcc-c++ gettext doxygen graphviz pkgconfig xorg-
 BuildRequires:  Mesa mesagl-devel gcc-c++ gettext doxygen graphviz pkgconfig lcms-devel xdg-utils compiz-devel libXcm-devel netpbm libtool-devel
 %endif
 %if 0%{?fedora_version} > 0
-BuildRequires: Mesa Mesa-devel gcc-c++ doxygen pkgconfig    xorg-x11-devel xorg-x11-Mesa-devel libXxf86vm-devel  liblcms-devel xdg-utils libXcm-devel libXrandr-devel libXinerama-devel libXmu-devel netpbm elektra-devel compiz-devel
+BuildRequires:  Mesa Mesa-devel gcc-c++ doxygen pkgconfig    xorg-x11-devel xorg-x11-Mesa-devel libXxf86vm-devel  liblcms-devel xdg-utils libXcm-devel libXrandr-devel libXinerama-devel libXmu-devel netpbm elektra-devel compiz-devel
 %endif
 %if 0%{?debian_version} > 0
 BuildRequires: gcc-c++ gettext doxygen graphviz fltk fltk-devel libpng-devel libjpeg-devel pkgconfig xorg-x11 xorg-x11-devel xorg-x11-Mesa-devel xorg-x11-libXext xorg-x11-libXext-devel  xorg-x11-libXpm xorg-x11-libXpm-devel  libtiff-devel libxml2-devel cairo-devel liblcms-devel elektra-devel xdg-utils cups-devel libqt4-devel compiz-devel libXcm-dev netpbm
@@ -53,17 +71,14 @@ make DESTDIR=%{buildroot} install-main
 rm -fr %{buildroot}/%{_datadir}/doc/%{name}
 
 
-%clean
-rm -rf %{buildroot}
-
 %post
-ldconfig
+/sbin/ldconfig
 # enable the plugin
 test -f /usr/share/compizconfig/global.xml && (if [ "`cat /usr/share/compizconfig/global.xml | grep compicc | wc -l`" = "0" ]; then cat /usr/share/compizconfig/global.xml | sed 's/<value>core<\/value>/<value>core<\/value>\n                                        <value>compicc<\/value>/'> ccp_global.xml; mv -v ccp_global.xml /usr/share/compizconfig/global.xml; fi)
 exit 0
 
 %postun
-ldconfig
+/sbin/ldconfig
 
 %files
 %defattr(-, root, root)
