@@ -42,8 +42,8 @@ TEST_CPP = \
 	tests/openmp_main.c \
 	tests/test_oyranos.c
 
-CPPFILES = \
-	compicc_pp.cpp
+CPPFILES =
+
 CXXFILES =
 TEST_FILES = $(TEST_CPP) $(TEST_H)
 
