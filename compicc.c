@@ -849,7 +849,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
   target = fetchProperty( s->display->display, root, target_atom, XA_CARDINAL,
                           &target_n, False);
-  //if(target) XFree(target);
 
   if( !target_n ||
       (target_n && !init) )
