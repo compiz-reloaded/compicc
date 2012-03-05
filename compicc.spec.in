@@ -2,7 +2,7 @@ Summary:             Compiz ICC Colour Management
 Name:                compicc
 License:             BSD
 Group:               Productivity/Graphics/Other
-URL:                 http://sourceforge.net/projects/compicc
+Url:                 http://sourceforge.net/projects/compicc
 Vendor:              Kai-Uwe Behrmann
 BuildRoot: %{_tmppath}/%{name}-root
 Prefix:    %{_prefix}
