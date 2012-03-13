@@ -17,7 +17,7 @@ Recommends:          oyranos-monitor-nvidia
 Recommends:          oyranos-qcmsevents
 BuildRequires:       compiz < 0.9
 Requires:            compiz < 0.9
-Recommends:          compizconfig-settings-manager < 0.9
+Requires:            compizconfig-settings-manager < 0.9
 
 %if 0%{?suse_version} > 0
 BuildRequires:       gcc-c++
