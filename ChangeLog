@@ -1,3 +1,44 @@
+Version 0.8.5
+
+Kai-Uwe Behrmann (34):
+	* [build]: minor spec fixes
+	* [core]: fix unused comment
+	* [core]: fix wrong variable access from #90d2df89
+	* [build]: adapt to openSUSE spec file
+	* [build]: remove non existent file
+	* [core]: update to Xcm changes
+	* [core]: use module provided hash
+	* [core]: support colour correction to multi monitor
+	* [core]: count window region
+	* [core]: use GL_EQUAL in pluginDrawWindow
+	* [core]: update to x_color_region_target
+	* [core]: store stencil start per window
+	* [core]: compute stencil ID during drawing
+	* [core]: clean up to 200 monitors
+	* [core]: do not use context description hook
+	* [core]: tell Oyranos we are a display
+	* [core]: fix string length array
+	* [core]: move ICC setup inside
+	* [core]: omit EDID removal
+	* [docu]: update NET to ICC atoms prefix
+	* [conf]: prepare C++ builds
+	* [conf]: bump libXcm requirement to 0.5
+	* [conf]: require libXcm during configure
+	* [core]: rename net-color spec
+	* [core]: support per region profiles
+	* [core]: make allocations fit for C++
+	* [core]: modularise CLUT creation
+	* [core]: add PrivColorContext
+	* [core]: cache profiles in Oyranos
+	* [core]: fix debug messages
+	* [core]: clean unused cruft
+	* [core]: improve debug clut images
+	* [conf]: bump version
+	* [docu]: update ChangeLog
+
+Tomas Carnecky (1):
+	* [core]: remerge with old profile code
+
 Version 0.8.4
 
 Kai-Uwe Behrmann (36):

@@ -2,7 +2,7 @@ Summary:             Compiz ICC Colour Management
 Name:                compicc
 License:             BSD
 Group:               Productivity/Graphics/Other
-URL:                 http://sourceforge.net/projects/compicc
+Url:                 http://sourceforge.net/projects/compicc
 Vendor:              Kai-Uwe Behrmann
 BuildRoot: %{_tmppath}/%{name}-root
 Prefix:    %{_prefix}
@@ -10,8 +10,8 @@ Prefix:    %{_prefix}
 # for mandriva; the compiz-devel package comes not with dependencies, so fit the compiz way
 %define _disable_ld_no_undefined 1
 
-BuildRequires:       liboyranos-alpha-devel
-Requires:            liboyranos0-monitor
+BuildRequires:       liboyranos-alpha-devel >= 0.4.0
+Requires:            liboyranos0-monitor >= 0.4.0
 Recommends:          oyranos-monitor
 Recommends:          oyranos-monitor-nvidia
 Recommends:          oyranos-qcmsevents
@@ -30,7 +30,7 @@ BuildRequires:       xorg-x11-Mesa
 BuildRequires:       xorg-x11-Mesa-devel
 BuildRequires:       xdg-utils
 BuildRequires:       compiz-devel < 0.9
-BuildRequires:       libXcm-devel
+BuildRequires:       libXcm-devel >= 0.5.0
 BuildRequires:       netpbm
 BuildRequires:       libtool
 %endif

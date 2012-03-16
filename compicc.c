@@ -104,7 +104,18 @@ static signed long colour_desktop_region_count = -1;
 #define END_CLOCK
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void* oyAllocateFunc_           (size_t        size);
+void  oyDeAllocateFunc_         (void *        data);
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
+
+void* cicc_alloc                (size_t        size) { void * p = oyAllocateFunc_(size); memset(p,0,size); return p; }
+void  cicc_free                 (void *        data) { oyDeAllocateFunc_(data); }
 
 typedef CompBool (*dispatchObjectProc) (CompPlugin *plugin, CompObject *object, void *privateData);
 
@@ -293,7 +304,7 @@ static void compObjectFreePrivate(CompObject *o)
   oyPointer ptr = o->privates[index].ptr;
   o->privates[index].ptr = NULL;
   if(ptr)
-    free(ptr);
+    cicc_free(ptr);
 }
 
 
@@ -569,19 +580,19 @@ static void updateWindowRegions(CompWindow *w)
         {
           oyProfile_Release( &pw->pRegion[i].cc[j]->dst_profile );
           oyProfile_Release( &pw->pRegion[i].cc[j]->src_profile );
-          if(ps->contexts[i].cc.glTexture)
+          if(&pw->pRegion[i].cc[j]->glTexture)
             glDeleteTextures( 1, &pw->pRegion[i].cc[j]->glTexture );
-          free( pw->pRegion[i].cc[j] );
+          cicc_free( pw->pRegion[i].cc[j] );
           pw->pRegion[i].cc[j] = NULL;
         }
         else
           break;
       }
-      free( pw->pRegion[i].cc ); pw->pRegion[i].cc = 0;
+      cicc_free( pw->pRegion[i].cc ); pw->pRegion[i].cc = 0;
     }
   }
   if (pw->nRegions)
-    free(pw->pRegion);
+    cicc_free(pw->pRegion);
   pw->nRegions = 0;
   oyRectangle_Release( &pw->absoluteWindowRectangleOld );
 
@@ -596,7 +607,7 @@ static void updateWindowRegions(CompWindow *w)
   if(data)
     count += XcolorRegionCount(data, nBytes + 1);
 
-  pw->pRegion = (PrivColorRegion*) calloc(count,sizeof(PrivColorRegion));
+  pw->pRegion = (PrivColorRegion*) cicc_alloc(count * sizeof(PrivColorRegion));
   if (pw->pRegion == NULL)
     goto out;
 
@@ -618,7 +629,7 @@ static void updateWindowRegions(CompWindow *w)
 
     if(memcmp(region->md5,n,16) != 0)
     {
-      pw->pRegion[i].cc = (PrivColorContext**)calloc( ps->nContexts + 1,
+      pw->pRegion[i].cc = (PrivColorContext**)cicc_alloc( (ps->nContexts + 1) *
                                                     sizeof(PrivColorContext*));
       if(!pw->pRegion[i].cc)
       {
@@ -629,7 +640,7 @@ static void updateWindowRegions(CompWindow *w)
 
       for(unsigned long j = 0; j < ps->nContexts; ++j)
       {
-        pw->pRegion[i].cc[j] = (PrivColorContext*) calloc( 1,
+        pw->pRegion[i].cc[j] = (PrivColorContext*) cicc_alloc(
                                                      sizeof(PrivColorContext) );
 
         if(!pw->pRegion[i].cc[j])
@@ -736,7 +747,7 @@ static int     hasScreenProfile      ( CompScreen        * s,
 {
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)cicc_alloc( 1024 );
   Atom a;
   oyPointer data;
   unsigned long n = 0;
@@ -757,7 +768,7 @@ static int     hasScreenProfile      ( CompScreen        * s,
   data = fetchProperty( s->display->display, root, a, XA_CARDINAL,
                           &n, False);
   if(data) XFree(data);
-  free(icc_profile_atom);
+  cicc_free(icc_profile_atom);
   return (int)n;
 }
 
@@ -767,7 +778,7 @@ static int     cleanScreenProfile    ( CompScreen        * s,
 {
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)cicc_alloc( 1024 );
   Atom a;
 
   if(!icc_profile_atom) return 0;
@@ -806,8 +817,8 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = (char*)calloc( 1024, sizeof(char) ),
-       * icc_colour_server_profile_atom = (char*)calloc( 1024, sizeof(char) );
+  char * icc_profile_atom = (char*)cicc_alloc( 1024 ),
+       * icc_colour_server_profile_atom = (char*)cicc_alloc( 1024 );
   Atom a,da, source_atom, target_atom;
 
   oyPointer source;
@@ -857,7 +868,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                        target_atom, XA_CARDINAL,
                        source, source_n );
     }
-    XFree( source );
+    if(source) XFree( source );
     source = 0; source_n = 0;
 
     if(init)
@@ -873,7 +884,8 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
       /* make shure the profile is ignored */
 
-      source = oyProfile_GetMem( screen_document_profile, &size, 0, malloc );
+      source = oyProfile_GetMem( screen_document_profile, &size, 0, cicc_alloc );
+      oyProfile_Release( &screen_document_profile );
       source_n = size;
 
       if(!updated_icc_color_desktop_atom)
@@ -881,14 +893,14 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
         updateNetColorDesktopAtom( s, ps, 2 );
         updated_icc_color_desktop_atom = 1;
       }
+
       if(source_n)
       {
         changeProperty ( s->display->display,
                          source_atom, XA_CARDINAL,
                          source, source_n );
       }
-      oyProfile_Release( &screen_document_profile );
-      if(source) free( source ); source = 0;
+      if(source) cicc_free( source ); source = 0;
     } else
     {
       /* clear/erase the _ICC_DEVICE_PROFILE(_xxx) atom */
@@ -901,14 +913,13 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                         DBG_STRING"icc_colour_server_profile_atom already present %d size:%lu",
                         DBG_ARGS, target_atom, target_n );
 
-  if(icc_profile_atom) free(icc_profile_atom);
-  if(icc_colour_server_profile_atom) free(icc_colour_server_profile_atom);
+  if(icc_profile_atom) cicc_free(icc_profile_atom);
+  if(icc_colour_server_profile_atom) cicc_free(icc_colour_server_profile_atom);
 }
 
 void           cleanDisplay          ( Display           * display )
 {
-  int error = 0,
-      n;
+  int error = 0;
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   char * display_name = 0, * t;
@@ -927,11 +938,11 @@ void           cleanDisplay          ( Display           * display )
                                    "unset", OY_CREATE_NEW );
     if(display_name)
     {
-      t = calloc(sizeof(char), strlen(display_name) + 8);
+      t = cicc_alloc( strlen(display_name) + 8 );
     } else
     {
       display_name = strdup(":0");
-      t = calloc(sizeof(char), 8);
+      t = cicc_alloc( 8);
     }
 
     if(t && display_name)
@@ -958,7 +969,6 @@ void           cleanDisplay          ( Display           * display )
                                    "//" OY_TYPE_STD "/config/display_name",
                                    display_name, OY_CREATE_NEW );
     error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-    n = oyConfigs_Count( devices );
     oyConfigs_Release( &devices );
     oyOptions_Release( &options );
 
@@ -985,8 +995,8 @@ void           cleanDisplay          ( Display           * display )
     oyConfigs_Release( &devices );
     oyOptions_Release( &options );
 
-    free(display_name); display_name = 0;
-    free(t); t = 0;
+    cicc_free(display_name); display_name = 0;
+    cicc_free(t); t = 0;
 }
 
 static int     getDeviceProfile      ( CompScreen        * s,
@@ -1215,7 +1225,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       if(hash_text)
       {
-        free(hash_text); hash_text = 0;
+        cicc_free(hash_text); hash_text = 0;
       }
 
 
@@ -1298,7 +1308,7 @@ static void freeOutput( PrivScreen *ps )
         glDeleteTextures( 1, &ps->contexts[i].cc.glTexture );
       ps->contexts[i].cc.glTexture = 0;
     }
-    free(ps->contexts);
+    cicc_free(ps->contexts);
   }
 }
 
@@ -1312,6 +1322,10 @@ void cleanDisplayProfiles( CompScreen *s )
 
     /* get number of connected devices */
     error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
+    if(error > 0)
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyDevicesGet() error: %d",
+                      DBG_ARGS, error);
     n = oyConfigs_Count( devices );
     oyConfigs_Release( &devices );
 
@@ -1342,7 +1356,7 @@ static void setupOutputs(CompScreen *s)
   {
     int i;
     ps->nContexts = n;
-    ps->contexts = (PrivColorOutput*)calloc( ps->nContexts,
+    ps->contexts = (PrivColorOutput*)cicc_alloc( ps->nContexts *
                                              sizeof(PrivColorOutput ));
     for(i = 0; i < n; ++i)
       ps->contexts[i].cc.ref = 1;
@@ -1363,7 +1377,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int error = 0,
-      n,
       set = 1;
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
@@ -1379,10 +1392,12 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-  n = oyOptions_Count( options );
+  if(error > 0)
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyDevicesGet() error: %d",
+                      DBG_ARGS, error);
   oyOptions_Release( &options );
 
-  n = oyConfigs_Count( devices );
 
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
@@ -1390,7 +1405,13 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     device = oyConfigs_Get( devices, i );
 
     if(init)
+    {
       error = getDeviceProfile( s, ps, device, i );
+      if(error > 0)
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "getDeviceProfile() error: %d",
+                      DBG_ARGS, error);
+    }
 
     if(ps->contexts[i].cc.dst_profile)
     {
@@ -1468,7 +1489,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       {
         int screen = 0;
         int ignore_profile = 0;
-        char * icc_colour_server_profile_atom = (char*)malloc(1024);
+        char * icc_colour_server_profile_atom = (char*)cicc_alloc(1024);
         char num[12];
         Atom da;
         unsigned long n = 0;
@@ -1527,7 +1548,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
           }
         }
 
-        if(icc_colour_server_profile_atom) free(icc_colour_server_profile_atom);
+        if(icc_colour_server_profile_atom) cicc_free(icc_colour_server_profile_atom);
 
         if(!ignore_profile &&
            /* change only existing profiles, ignore removed ones */
@@ -1957,8 +1978,8 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if(!colour_desktop_can)
     return 1;
 
-  atom_colour_server_name = (char*)malloc(1024);
-  atom_capabilities_text = (char*)malloc(1024);
+  atom_colour_server_name = (char*)cicc_alloc(1024);
+  atom_capabilities_text = (char*)cicc_alloc(1024);
   if(!atom_colour_server_name || !atom_capabilities_text)
   {
     status = 3;
@@ -2025,7 +2046,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if( (atom_time + 10) < icc_color_desktop_last_time ||
       request == 2 )
   {
-    char * atom_text = (char*)malloc(1024);
+    char * atom_text = (char*)cicc_alloc(1024);
     if(!atom_text) goto clean_updateNetColorDesktopAtom;
     sprintf( atom_text, "%d %ld %s %s",
              (int)pid, (long)cutime,
@@ -2047,12 +2068,12 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
       colour_desktop_can = 0;
     }
 
-    if(atom_text) free( atom_text );
+    if(atom_text) cicc_free( atom_text );
   }
 
 clean_updateNetColorDesktopAtom:
-  if(atom_colour_server_name) free(atom_colour_server_name);
-  if(atom_capabilities_text) free(atom_capabilities_text);
+  if(atom_colour_server_name) cicc_free(atom_colour_server_name);
+  if(atom_capabilities_text) cicc_free(atom_capabilities_text);
 
   icc_color_desktop_last_time = cutime;
 
@@ -2178,14 +2199,15 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
   PrivScreen *ps = privateData;
 
   int error = 0,
-      n,
       init = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
 
   error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
-
-  n = oyConfigs_Count( devices );
+  if(error > 0)
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "oyDevicesGet() error: %d",
+                      DBG_ARGS, error);
 
   /* switch profile atoms back */
   for(int i = 0; i < ps->nContexts; ++i)
@@ -2286,7 +2308,7 @@ oyPointer pluginAllocatePrivatePointer( CompObject * o )
     return 0;
 
   {
-    o->privates[index].ptr = malloc(size);
+    o->privates[index].ptr = cicc_alloc(size);
     if(!o->privates[index].ptr) return 0;
     memset( o->privates[index].ptr, 0, size);
   }

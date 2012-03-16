@@ -35,7 +35,7 @@ test -f libXNVCtrl.a && rm libXNVCtrl.a
 
 VERSION_A=0
 VERSION_B=8
-VERSION_C=5
+VERSION_C=6
 VERSION_ABI_A=1
 VERSION_ABI_B=0
 RELEASE=0
@@ -852,7 +852,7 @@ test -n "$ECHO" && $ECHO "#define $TARGET_UP'_DATE' \"$DATE\"" >> $VERS_H
 test -n "$ECHO" && $ECHO "" >> $VERS_H
 
 test -n "$RPMECHO" && $RPMECHO "Version:         $VERSION" >> $SPEC
-test -n "$RPMECHO" && $RPMECHO "Source:          $TARGET"-"$VERSION".tar.gz >> $SPEC
+test -n "$RPMECHO" && $RPMECHO "Source:          $TARGET"-"$VERSION".tar.bz2 >> $SPEC
 test -n "$RPMECHO" && $RPMECHO "Release:         $RELEASE" >> $SPEC
 test -n "$RPMECHO" && $RPMECHO "%define icondir  $icondir" >> $SPEC
 test -n "$RPMECHO" && cat  $ROOT_DIR/"$SPEC.in" >> $SPEC
