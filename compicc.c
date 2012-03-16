@@ -334,10 +334,9 @@ static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
  */
 static const char *md5string(const uint8_t md5[16])
 {
-	static char buffer[33];
+	static char buffer[33] = {0};
 	const uint32_t * h = (const uint32_t*)md5;
 
-	buffer[0] = 0;
 	sprintf( buffer, "%x%x%x%x", h[0],h[1],h[2],h[3]);
 
 	return buffer;
