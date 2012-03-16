@@ -345,10 +345,9 @@ static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
  */
 static const char *md5string(const uint8_t md5[16])
 {
-	static char buffer[33];
+	static char buffer[33] = {0};
 	const uint32_t * h = (const uint32_t*)md5;
 
-	buffer[0] = 0;
 	sprintf( buffer, "%x%x%x%x", h[0],h[1],h[2],h[3]);
 
 	return buffer;
@@ -1095,16 +1094,22 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 {
   oyConversion_s * cc;
   int error = 0;
+  oyProfile_s * dst_profile = ccontext->dst_profile, * web = 0;
 
-    if (ccontext->dst_profile)
+    if(!ccontext->dst_profile)
+      dst_profile = web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+
     {
       int flags = 0;
 
-      oyProfile_s * src_profile = ccontext->src_profile,
-                  * dst_profile = ccontext->dst_profile;
+      oyProfile_s * src_profile = ccontext->src_profile;
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
+
+      /* skip web to web conversion */
+      if(!src_profile && web)
+        goto clean_setupColourTable;
 
       if(!src_profile)
         src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
@@ -1139,7 +1144,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "no conversion created for %s",
                       DBG_ARGS, ccontext->output_name);
-        return;
+        goto clean_setupColourTable;
       }
       oyOptions_Release( &options );
 
@@ -1152,7 +1157,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "oyConversion_Correct(///icc,%d,0) failed %s",
                       DBG_ARGS, flags, ccontext->output_name);
-        return;
+        goto clean_setupColourTable;
       }
 
       oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
@@ -1209,7 +1214,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
           oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
                       DBG_STRING "oyConversion_RunPixels() error: %d %s",
                       DBG_ARGS, error, ccontext->output_name);
-          return;
+          goto clean_setupColourTable;
         }
 
         memcpy( clut->array2d[0], ccontext->clut,
@@ -1231,12 +1236,18 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       cdCreateTexture( ccontext );
 
-    } else {
+    }
+
+    if(!ccontext->dst_profile)
+    {
       oyCompLogMessage( NULL, "compicc", CompLogLevelInfo,
                       DBG_STRING "Output \"%s\": no profile",
                       DBG_ARGS, ccontext->output_name);
     }
 
+    clean_setupColourTable:
+    if(web)
+      oyProfile_Release( &web );
 }
 
 static int     getDisplayAdvanced    ( CompScreen        * s,
@@ -1405,7 +1416,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
     if(ps->contexts[i].cc.dst_profile)
     {
       moveICCprofileAtoms( s, i, set );
-      setupOutputTable( s, device, i );
     } else
     {
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
@@ -1413,6 +1423,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
                   DBG_ARGS, i, ps->nContexts, &ps->contexts[i],
                   ps->contexts[i].cc.dst_profile);
     }
+    setupOutputTable( s, device, i );
 
     oyConfig_Release( &device );
   }
@@ -1867,7 +1878,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
       /* Now draw the window texture */
       UNWRAP(ps, s, drawWindowTexture);
-      if(c->dst_profile && c->glTexture)
+      if(c->glTexture)
         (*s->drawWindowTexture) (w, texture, &fa, mask);
       else
         /* ignore the shader */
