@@ -1,0 +1,57 @@
+The Compiz ICC colour server, or short compicc, lets you colour manage your whole desktop at once and in hardware. Play movies, watch images on wide or narrow gamut displays. Each connected monitor is colour corrected for its own.
+
+CompICC is written to help the many colour management unaware applications. It takes them off any decision, what to do around monitor profiles. To do so CompICC does its work unquestioned. The result is a more consistent desktop.
+
+CompICC follows the opt out colour correction paradigm. Colour management unaware applications can continue to assume they are drawing in sRGB. They do not need any ICC profile nor any new library to do so. sRGB is the standard colour space for the internet. There are some applications, which want to do own colour corrections for displaying large gamut photos, proofing or monitor calibration. Those need to tell CompICC not to colour correct certain regions of their windows. This means slightly more work for aware applications to do advanced colour management other than sRGB.
+
+== Features ==
+
+Please see the [https://sourceforge.net/projects/compicc/ summary page].
+
+== Usage ==
+
+* enable compiz
+* open ccsm
+** enable the colour management plugin with the project icon under the workspace category
+** the desktop should be colour managed
+
+* [http://compicc.git.sourceforge.net/git/gitweb.cgi?p=compicc/compicc;a=blob;f=README README] has some more informations
+
+The ICC profile can be changed with various tools like kolor-manager or oyranos-monitor.
+
+== Download ==
+
+* [https://sourceforge.net/projects/compicc/files/ SourceForge] directories
+* [https://sourceforge.net/projects/openicc/files/Demo/ Oyranos Colour Management - openSUSE-11.3 64bit] LiveCD ~700MB CompIcc v0.8.3
+
+== Dependencies ==
+
+Version 0.8.4:
+* [http://releases.compiz.org/0.8.8/ Compiz 0.7.x - 0.8.x]
+* [http://www.oyranos.org/wiki/index.php?title=Oyranos/Download#Dependencies Oyranos 0.3.1 +]
+** [https://sourceforge.net/projects/oyranos/files/ libXcm-0.4.x]
+** [https://sourceforge.net/projects/oyranos/files/ Xcm-0.4.x] optionally
+** ... some more Xorg development libraries
+
+== Development ==
+
+* [https://sourceforge.net/projects/compicc/develop SouceForge] page
+
+A [http://www.oyranos.org/wiki/index.php?title=Oyranos/git Oyranos git] download and build script covers as well CompIcc.
+
+== License ==
+
+[https://sourceforge.net/projects/compicc/ new BSD]
+
+== Problems ==
+
+To check correct working of the plugin:
+* compiz is required to run
+* look if the _ICC_COLOR_DESKTOP atom is active
+** tools like xcmsevents or qcmsevents will assist you, The QCmsEvents TrayIcon should be colourd
+* test with a test ICC profile like [http://www.oyranos.org/wiki/images/c/c0/FakeBRG.icc FakeBRG.icc]
+* for a colorimetric verification use ArgyllCMS and a according color measurement device
+
+The ICC profile attached to each monitor can be checked with tools like kolor-manager, ICC Examin or oyranos-monitor.
+
+__NOTOC__
