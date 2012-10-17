@@ -39,9 +39,11 @@
 
 #include <compiz-common.h>
 
-#include <alpha/oyranos_alpha.h>
-#include <alpha/oyranos_cmm.h> // oyCMMptr_New
-#include <oyranos_definitions.h> /* ICC Profile in X */
+#include <oyranos_devices.h>
+#include <oyConversion_s.h>
+#include <oyFilterGraph_s.h>
+#include <oyFilterNode_s.h>
+#include <oyRectangle_s.h>
 
 #include <X11/Xcm/Xcm.h>
 #include <X11/Xcm/XcmEvents.h>
@@ -161,7 +163,7 @@ typedef struct {
 /**
  * Output profiles are currently only fetched using XRandR. For backwards 
  * compatibility the code should fall back to root window properties 
- * (OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE).
+ * (XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE).
  */
 typedef struct {
   char name[32];
@@ -506,7 +508,7 @@ static void updateScreenProfiles(CompScreen *s)
   for (unsigned long i = 0; i < count; ++i)
   {
     const char * hash_text = md5string(profile->md5);
-    entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
+    entry = oyStructList_GetHash( cache, exact_hash_size, hash_text );
     prof = (oyProfile_s *) oyHash_GetPointer( entry, oyOBJECT_PROFILE_S);
     /* XcolorProfile::length == 0 means the clients wants to delete the profile. */
     if( ntohl(profile->length) )
@@ -542,14 +544,13 @@ static void updateScreenProfiles(CompScreen *s)
 oyProfile_s *  profileFromMD5        ( uint8_t           * md5 )
 {
   uint32_t exact_hash_size = 0;
-  oyHash_s * entry;
   oyProfile_s * prof = NULL;
   oyStructList_s * cache = pluginGetPrivatesCache();
 
   /* Copy the profiles into the array, and create the Oyranos handles. */
   const char * hash_text = md5string(md5);
-  entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
-  prof = (oyProfile_s *) oyHash_GetPointer( entry, oyOBJECT_PROFILE_S);
+  prof = (oyProfile_s *) oyStructList_GetHashStruct( cache, exact_hash_size,
+                                               hash_text, oyOBJECT_PROFILE_S );
 
   return prof;
 }
@@ -756,10 +757,10 @@ static int     hasScreenProfile      ( CompScreen        * s,
 
   snprintf( num, 12, "%d", (int)screen );
   if(server)
-  snprintf( icc_profile_atom, 1024, OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_profile_atom, 1024, XCM_DEVICE_PROFILE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
   else
-  snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_profile_atom, 1024, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
 
 
@@ -785,10 +786,10 @@ static int     cleanScreenProfile    ( CompScreen        * s,
 
   snprintf( num, 12, "%d", (int)screen );
   if(server)
-  snprintf( icc_profile_atom, 1024, OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_profile_atom, 1024, XCM_DEVICE_PROFILE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
   else
-  snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_profile_atom, 1024, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
 
 
@@ -827,9 +828,9 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
   int updated_icc_color_desktop_atom = 0;
 
   snprintf( num, 12, "%d", (int)screen );
-  snprintf( icc_profile_atom, 1024, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_profile_atom, 1024, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
-  snprintf( icc_colour_server_profile_atom, 1024, OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s", 
+  snprintf( icc_colour_server_profile_atom, 1024, XCM_DEVICE_PROFILE"%s%s", 
             screen ? "_" : "", screen ? num : "" );
 
   a = XInternAtom(s->display->display, icc_profile_atom, False);
@@ -873,7 +874,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
     if(init)
     {
-      /* setup the OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE(_xxx) atom as document colour space */
+      /* setup the XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE(_xxx) atom as document colour space */
       size_t size = 0;
       oyProfile_s * screen_document_profile = oyProfile_FromStd( oyASSUMED_WEB,
                                                                  0 );
@@ -1020,7 +1021,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
                       DBG_STRING"monitor rectangle request failed", DBG_ARGS);
       return 1;
     }
-    r = (oyRectangle_s*) oyOption_StructGet( o, oyOBJECT_RECTANGLE_S );
+    r = (oyRectangle_s*) oyOption_GetStruct( o, oyOBJECT_RECTANGLE_S );
     if( !r )
     {
       oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1029,10 +1030,10 @@ static int     getDeviceProfile      ( CompScreen        * s,
     }
     oyOption_Release( &o );
 
-    output->xRect.x = r->x;
-    output->xRect.y = r->y;
-    output->xRect.width = r->width;
-    output->xRect.height = r->height;
+    output->xRect.x = oyRectangle_GetGeo1( r, 0 );
+    output->xRect.y = oyRectangle_GetGeo1( r, 1 );
+    output->xRect.width = oyRectangle_GetGeo1( r, 2 );
+    output->xRect.height = oyRectangle_GetGeo1( r, 3 );
 
     device_name = oyConfig_FindString( device, "device_name", 0 );
     if(device_name && device_name[0])
@@ -1101,6 +1102,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
     {
       int flags = 0;
+      int ** ptr;
 
       oyProfile_s * src_profile = ccontext->src_profile;
       oyOptions_s * options = 0;
@@ -1174,7 +1176,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyHash_s * entry;
       oyArray2d_s * clut = NULL;
       oyStructList_s * cache = pluginGetPrivatesCache();
-      entry = oyCacheListGetEntry_( cache, exact_hash_size, hash_text );
+      entry = oyStructList_GetHash( cache, exact_hash_size, hash_text );
       clut = (oyArray2d_s*) oyHash_GetPointer( entry, oyOBJECT_ARRAY2D_S);
       oyFilterNode_Release( &icc );
       oyFilterGraph_Release( &cc_graph );
@@ -1184,9 +1186,11 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                       DBG_STRING "clut from cache %s %s",
                       DBG_ARGS, clut?"obtained":"", hash_text);
       if(clut)
-        memcpy( ccontext->clut, clut->array2d[0], 
+      {
+        ptr = oyArray2d_GetData(clut);
+        memcpy( ccontext->clut, ptr[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
-      else
+      } else
       {
         uint16_t in[3];
         for (int r = 0; r < GRIDPOINTS; ++r)
@@ -1217,7 +1221,8 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
           goto clean_setupColourTable;
         }
 
-        memcpy( clut->array2d[0], ccontext->clut,
+        ptr = oyArray2d_GetData(clut);
+        memcpy( ptr[0], ccontext->clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
@@ -1482,7 +1487,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
     /* update for a changing monitor profile */
     } else if(
-           strstr( atom_name, OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE) != 0/* &&
+           strstr( atom_name, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE) != 0/* &&
            strstr( atom_name, "ICC_PROFILE_IN_X") == 0*/ )
     {
       if(colour_desktop_can)
@@ -1494,13 +1499,13 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         Atom da;
         unsigned long n = 0;
 
-        if(strlen(atom_name) > strlen(OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"_"))
+        if(strlen(atom_name) > strlen(XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"_"))
         sscanf( (const char*)atom_name,
-                OY_ICC_V0_3_TARGET_PROFILE_IN_X_BASE "_%d", &screen );
+                XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE "_%d", &screen );
         snprintf( num, 12, "%d", (int)screen );
 
         snprintf( icc_colour_server_profile_atom, 1024,
-                  OY_ICC_COLOUR_SERVER_TARGET_PROFILE_IN_X_BASE"%s%s",
+                  XCM_DEVICE_PROFILE"%s%s",
                   screen ? "_" : "", screen ? num : "" );
 
         da = XInternAtom( d->display, icc_colour_server_profile_atom, False);
@@ -1707,8 +1712,8 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   {
     forEachWindowOnScreen(s, damageWindow, NULL);
 
-    if(w->serverWidth != pw->absoluteWindowRectangleOld->width ||
-       w->serverHeight != pw->absoluteWindowRectangleOld->height)
+    if(w->serverWidth != oyRectangle_GetGeo1( pw->absoluteWindowRectangleOld, 2 ) ||
+       w->serverHeight != oyRectangle_GetGeo1( pw->absoluteWindowRectangleOld, 3 ))
       updateWindowRegions( w );
 
     oyRectangle_SetByRectangle( pw->absoluteWindowRectangleOld, rect );
