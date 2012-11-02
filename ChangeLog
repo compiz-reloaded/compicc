@@ -1,3 +1,16 @@
+Version 0.8.6
+
+Kai-Uwe Behrmann (9):
+	* [docu]: update requirements to Oyranos >= 0.9.0
+	* [core]: compile with oyranos:gsoc2011 branch
+	* [docu]: add wiki page
+	* [build]: use spdx.org format for spec file
+	* [core]: render outputs as well without profile
+	* [core]: initialise string once
+	* [build]: require ccsm in spec file
+	* [build]: require newer Xcm versions in spec file
+	* [conf]: bump version
+
 Version 0.8.5
 
 Kai-Uwe Behrmann (34):

@@ -42,8 +42,8 @@ Internet:
 
 
 Dependencies:
-    Compiz
-    Oyranos colour management system
+    Compiz 0.8.x
+    Oyranos colour management system >= 0.9.0
 
   Debian:
     locales
