@@ -2145,7 +2145,8 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
 #ifdef HAVE_XRANDR
   XRRSelectInput( s->display->display,
                   XRootWindow( s->display->display, screen ),
-                  RROutputPropertyNotifyMask);
+                  RROutputPropertyNotifyMask | RRCrtcChangeNotifyMask |
+                  RROutputChangeNotifyMask | RROutputPropertyNotifyMask );
 #endif
 
   /* initialisation is done in pluginHandleEvent() by checking ps->nContexts */
