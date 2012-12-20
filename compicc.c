@@ -1940,11 +1940,10 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
  *  The second section contains time since epoch GMT as returned by time(NULL).
  *  The thired section contains the bar '|' separated and surrounded
  *  capabilities:
- *    - ICP  _ICC_COLOR_PROFILES
- *    - ICT  _ICC_COLOR_TARGET
- *    - ICM  _ICC_COLOR_MANAGEMENT
- *    - ICR  _ICC_COLOR_REGIONS
- *    - ICA  _ICC_COLOR_DISPLAY_ADVANCED
+ *    - ICP  _ICC_COLOR_PROFILES  - support per region profiles
+ *    - ICM  _ICC_COLOR_MANAGEMENT - color server is active
+ *    - ICR  _ICC_COLOR_REGIONS - support regions
+ *    - ICA  _ICC_COLOR_DISPLAY_ADVANCED - use CMS advanced settings, e.g. proofing
  *    - _ICC_COLOR_DESKTOP is omitted
  *    - V0.3 indicates version compliance to the _ICC_Profile in X spec
  *  The fourth section contains the server name identifier.
