@@ -1950,7 +1950,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   const char * my_id = "compicc",
-             * my_capabilities = "|ICP|ICR|ICA|V0.3|"; /* _ICC_COLOR_REGIONS
+             * my_capabilities = "|ICM|ICP|ICR|ICA|V0.3|"; /* _ICC_COLOR_REGIONS
                                                     * _ICC_COLOR_PROFILES */
   unsigned long n = 0;
   char * data = 0;
