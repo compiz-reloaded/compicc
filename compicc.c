@@ -143,10 +143,8 @@ typedef struct {
 } PrivColorContext;
 
 /**
- * The XserverRegion is dereferenced only when the client sends a
- * _ICC_COLOR_MANAGEMENT ClientMessage to its window. This allows clients to
- * change the region as the window is resized and later send _N_C_M to tell the
- * plugin to re-fetch the region from the server.
+ * The XserverRegion is dereferenced when the client sets it on a window.
+ * This allows clients to change the region as the window is resized.
  * The profile is resolved as soon as the client uploads the regions into the
  * window. That means clients need to upload profiles first and then the 
  * regions. Otherwise the plugin won't be able to find the profile and no color
@@ -189,9 +187,6 @@ typedef struct {
   int childPrivateIndex;
 
   HandleEventProc handleEvent;
-
-  /* ClientMessage sent by the application */
-  Atom iccColorManagement;
 
   /* Window properties */
   Atom iccColorProfiles;
@@ -1574,15 +1569,6 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     }
 
     break;
-  case ClientMessage:
-    if (event->xclient.message_type == pd->iccColorManagement)
-    {
-      CompWindow *w = findWindowAtDisplay (d, event->xclient.window);
-      PrivWindow *pw = compObjectGetPrivate((CompObject *) w);
-
-      pw->active = 1;
-    }
-    break;
   default:
 #ifdef HAVE_XRANDR
     if (event->type == d->randrEvent + RRNotify)
@@ -2101,8 +2087,6 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
     return FALSE;
 
   WRAP(pd, d, handleEvent, pluginHandleEvent);
-
-  pd->iccColorManagement = XInternAtom(d->display, "_ICC_COLOR_MANAGEMENT", False);
 
   pd->iccColorProfiles = XInternAtom(d->display, XCM_COLOR_PROFILES, False);
   pd->iccColorRegions = XInternAtom(d->display, XCM_COLOR_REGIONS, False);
