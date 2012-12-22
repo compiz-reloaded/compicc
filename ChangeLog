@@ -1,3 +1,12 @@
+Version 0.8.7
+
+Kai-Uwe Behrmann (5):
+	* [core]: add ICM attribute to _ICC_COLOR_DESKTOP
+	* [core]: remove obsolete client message
+	* [core]: describe our _ICC_COLOR_DESKTOP attributes
+	* [core]: observe more XRandR events
+	* [conf]: bump version
+
 Version 0.8.6
 
 Kai-Uwe Behrmann (9):
