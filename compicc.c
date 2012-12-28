@@ -236,7 +236,7 @@ static Region absoluteRegion(CompWindow *w, Region region);
 static void damageWindow(CompWindow *w, void *closure);
 static void addWindowRegionCount(CompWindow *w, void * count);
 oyPointer  pluginGetPrivatePointer   ( CompObject        * o );
-static int updateNetColorDesktopAtom ( CompScreen        * s,
+static int updateIccColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        int                 request );
 static int     hasScreenProfile      ( CompScreen        * s,
@@ -855,7 +855,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
     /* _ICC_COLOR_DESKTOP atom is set before any _ICC_PROFILE(_xxx) changes. */
     if(init)
     {
-      updateNetColorDesktopAtom( s, ps, 2 );
+      updateIccColorDesktopAtom( s, ps, 2 );
       updated_icc_color_desktop_atom = 1;
     }
     if(source_n)
@@ -886,7 +886,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
       if(!updated_icc_color_desktop_atom)
       {
-        updateNetColorDesktopAtom( s, ps, 2 );
+        updateIccColorDesktopAtom( s, ps, 2 );
         updated_icc_color_desktop_atom = 1;
       }
 
@@ -1478,7 +1478,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
     /* let possibly others take over the colour server */
     } else if( event->xproperty.atom == pd->iccColorDesktop && atom_name )
     {
-      updateNetColorDesktopAtom( s, ps, 0 );
+      updateIccColorDesktopAtom( s, ps, 0 );
 
     /* update for a changing monitor profile */
     } else if(
@@ -1670,7 +1670,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   time_t  cutime;         /* Time since epoch */
   cutime = time(NULL);    /* current user time */
   if((cutime - icc_color_desktop_last_time > (time_t)10))
-    updateNetColorDesktopAtom( s, ps, 0 );
+    updateIccColorDesktopAtom( s, ps, 0 );
 
   UNWRAP(ps, s, drawWindow);
   Bool status = (*s->drawWindow) (w, transform, attrib, region, mask);
@@ -1941,7 +1941,7 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
  *                                     - 2  activate
  *                                     - 3  error
  */
-static int updateNetColorDesktopAtom ( CompScreen        * s,
+static int updateIccColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        int                 request )
 {
@@ -1973,7 +1973,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
   if(!atom_colour_server_name || !atom_capabilities_text)
   {
     status = 3;
-    goto clean_updateNetColorDesktopAtom;
+    goto clean_updateIccColorDesktopAtom;
   }
 
   atom_colour_server_name[0] = atom_capabilities_text[0] = '\000';
@@ -2037,7 +2037,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
       request == 2 )
   {
     char * atom_text = (char*)cicc_alloc(1024);
-    if(!atom_text) goto clean_updateNetColorDesktopAtom;
+    if(!atom_text) goto clean_updateIccColorDesktopAtom;
     sprintf( atom_text, "%d %ld %s %s",
              (int)pid, (long)cutime,
              /* say if we can convert, otherwise give only the version number */
@@ -2061,7 +2061,7 @@ static int updateNetColorDesktopAtom ( CompScreen        * s,
     if(atom_text) cicc_free( atom_text );
   }
 
-clean_updateNetColorDesktopAtom:
+clean_updateIccColorDesktopAtom:
   if(atom_colour_server_name) cicc_free(atom_colour_server_name);
   if(atom_capabilities_text) cicc_free(atom_capabilities_text);
 
