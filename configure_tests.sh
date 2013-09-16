@@ -611,11 +611,14 @@ if [ -n "$XCM" ] && [ $XCM -gt 0 ]; then
     if [ -z "$found" ]; then
       pkg-config  --atleast-version=0.2 $pc_package
       if [ $? = 0 ]; then
+        # pkg-config --cflags $pc_package may be empty
         found=`pkg-config --cflags $pc_package`
         version=`pkg-config --modversion $pc_package`
+      else
+        found="no"
       fi
     fi
-    if [ -n "$found" ]; then
+    if [ "$found" != "no" ]; then
       if [ -n "$version" ]; then
         echo_="X CM $version              detected"; echo "$echo_" >> $CONF_LOG; test -n "$ECHO" && $ECHO "$echo_"
       else
