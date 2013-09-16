@@ -78,23 +78,6 @@ X11=0
 X_ADD_2="X11 Xext Xinerama Xxf86vm Xrandr"
 LIBS_TEST="ltdl dl iconv intl m xml2 Xcm Xfixes"
 
-# find a suitable fltk-config script
-fltkconfig="fltk-config"
-old_IFS=$IFS;
-IFS=:
-for i in $PATH; do
-  test -x "$i/$fltkconfig" && fltkconfig_="$i/$fltkconfig"
-done
-if [ -z "$fltkconfig_" ]; then
-  for i in $PATH; do
-    test -x "$i/fltk-utf8-config" && fltkconfig_="$i/fltk-utf8-config"
-  done
-fi
-if [ -n "$fltkconfig_" ]; then
-  fltkconfig="$fltkconfig_"
-fi
-IFS=$old_IFS
-
 if [ $# -gt 0 ]; then
   prefix=""
   while [ $# -gt 0 ]; do
@@ -143,10 +126,6 @@ if [ $# -gt 0 ]; then
     switch=mandir
     if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
       mandir="`echo $1 | sed s/--$switch=//`"
-    fi
-    switch=with-fltk-config
-    if [ "`echo \"$1\" | sed s/\"--$switch=\"//`" != "$1" ]; then
-      fltkconfig="`echo $1 | sed s/--$switch=//`"
     fi
     switch=with-x
     if [ "`echo \"$1\" | sed s/\"--$switch\"//`" != "$1" ]; then
@@ -219,7 +198,6 @@ test -n "$INFOECHO" && $INFOECHO "   --regdir=[\$datadir/compiz]           plugi
 test -n "$INFOECHO" && $INFOECHO "   --icondir=[\$datadir/ccsm/icons/hicolor/scalable/apps/]             icon for ccsm"
 test -n "$INFOECHO" && $INFOECHO "   --mandir=[\$datadir/man]              manual installation path"
 test -n "$INFOECHO" && $INFOECHO ""
-test -n "$INFOECHO" && $INFOECHO "   --with-fltk-config=[fltk-config]     alternative fltk version"
 test -n "$INFOECHO" && $INFOECHO "   --with-x                             use X11 on Darwin"
 test -n "$INFOECHO" && $INFOECHO "   --with-rpath                         use rpath for ELF linking"
 test -n "$INFOECHO" && $INFOECHO "   --rpm-only                           generate only rpm spec file"
@@ -540,7 +518,7 @@ if [ -z "$mandir" ]; then
 fi
 export prefix exec_prefix bindir sbindir libdir plugindir includedir datadir
 export regdir mandir
-export debug static verbose fltkconfig
+export debug static verbose
 
 PATH=$bindir:$PATH
 export PATH
@@ -574,12 +552,6 @@ fi
 test -n "$ECHO" && $ECHO "LIB=/"$LIBDIR >> $CONF
 
 PATH=$PATH:/usr/X11R6/bin; export PATH
-test -n "$ECHO" && $fltkconfig --cxxflags 2>>$CONF_LOG
-FLTK_=`$fltkconfig --cxxflags`
-if [ $? = 0 ] && [ -n "$FLTK_" ]; then
-  FLTK=1
-fi
-
 
 if [ $nodeps -eq 1 ]; then
   GCC_MM="echo \"\#disable dependency tracking\""
@@ -615,7 +587,6 @@ if [ $OSUNAME = "Darwin" ]; then
   test -n "$ECHO" && $ECHO "MSGMERGE = msgmerge" >> $CONF
   CFLAGS="$CFLAGS $DPIC -Wunused -fno-exceptions -flat_namespace -undefined suppress"
   CXXFLAGS="$CXXFLAGS $DPIC -Wunused -fno-exceptions -flat_namespace -undefined suppress"
-  test -n "$ECHO" && $ECHO "REZ = $fltkconfig --post \$@" >> $CONF
   test -n "$ECHO" && $ECHO "I18N_LIB = \$(iconv) \$(intl) \$(LIBNAMEV)" >> $CONF
   test -n "$ECHO" && $ECHO "I18N_LIBSTAT = \$(iconv) \$(intl) \$(LIBNAMEV)" >> $CONF
   INSTALL="install -p $DEBUG_SWITCH"

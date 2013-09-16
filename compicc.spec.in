@@ -46,7 +46,7 @@ BuildRequires:  Mesa mesagl-devel gcc-c++ gettext doxygen graphviz pkgconfig lcm
 BuildRequires:  Mesa Mesa-devel gcc-c++ doxygen pkgconfig    xorg-x11-devel xorg-x11-Mesa-devel libXxf86vm-devel  liblcms-devel xdg-utils libXcm-devel libXrandr-devel libXinerama-devel libXmu-devel netpbm elektra-devel compiz-devel
 %endif
 %if 0%{?debian_version} > 0
-BuildRequires: gcc-c++ gettext doxygen graphviz fltk fltk-devel libpng-devel libjpeg-devel pkgconfig xorg-x11 xorg-x11-devel xorg-x11-Mesa-devel xorg-x11-libXext xorg-x11-libXext-devel  xorg-x11-libXpm xorg-x11-libXpm-devel  libtiff-devel libxml2-devel cairo-devel liblcms-devel elektra-devel xdg-utils cups-devel libqt4-devel compiz-devel libXcm-dev netpbm
+BuildRequires: gcc-c++ gettext doxygen graphviz libpng-devel libjpeg-devel pkgconfig xorg-x11 xorg-x11-devel xorg-x11-Mesa-devel xorg-x11-libXext xorg-x11-libXext-devel  xorg-x11-libXpm xorg-x11-libXpm-devel  libtiff-devel libxml2-devel cairo-devel liblcms-devel elektra-devel xdg-utils cups-devel libqt4-devel compiz-devel libXcm-dev netpbm
 %endif
 
 

@@ -2,7 +2,6 @@
 COLLECT = ar cru
 RANLIB = ranlib
 LNK = ln -s
-POST = $(fltkconfig) --post
 RPMARCH = `rpmbuild --showrc | awk '/^build arch/ {print $$4}'`
 MSGCAT = msgcat
 MSGFMT = msgfmt -c --statistics
