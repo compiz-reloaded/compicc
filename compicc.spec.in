@@ -65,7 +65,7 @@ narrow gamut displays. Each connected monitor is colour corrected for its own.
 
 %install
 rm -rf %{buildroot}
-make %{_smp_mflags}
+make %{?_smp_mflags}
 make DESTDIR=%{buildroot} install-main
 rm -fr %{buildroot}/%{_datadir}/doc/%{name}
 
