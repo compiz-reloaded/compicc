@@ -7,13 +7,15 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
-              2009-2012 (C) Kai-Uwe Behrmann
+ *            2009-2013 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
  */
 
 
+/* strdup needs _BSD_SOURCE */
+#define _BSD_SOURCE
 #include <assert.h>
 #include <math.h>     // floor()
 #include <string.h>   // http://www.opengroup.org/onlinepubs/009695399/functions/strdup.html
@@ -25,7 +27,6 @@
 #include <icc34.h>
 
 #define GL_GLEXT_PROTOTYPES
-#define _BSD_SOURCE
 
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
