@@ -95,8 +95,6 @@ if [ -n "$fltkconfig_" ]; then
 fi
 IFS=$old_IFS
 
-STRIPOPT="sed s/-O.//"
-
 if [ $# -gt 0 ]; then
   prefix=""
   while [ $# -gt 0 ]; do
@@ -559,15 +557,15 @@ test -n "$ECHO" && $ECHO "CC = $CC" >> $CONF
 export CC CXX
 
 # many constant strings are much longer than the C90 allowed, skip the warning
-CFLAGS_COMMON="`echo $CFLAGS_COMMON | $STRIPOPT` \$(DEBUG) \$(OPENMP) -std=c99 -D__USE_POSIX2=1"
-CXXFLAGS_COMMON="`echo $CXXFLAGS_COMMON | $STRIPOPT` \$(DEBUG) \$(OPENMP)"
-CFLAGS="`echo $CFLAGS | $STRIPOPT`"
-CXXFLAGS="`echo $CXXFLAGS | $STRIPOPT`"
+CFLAGS_COMMON="`echo $CFLAGS_COMMON` \$(DEBUG) \$(OPENMP) -std=c99 -D__USE_POSIX2=1"
+CXXFLAGS_COMMON="`echo $CXXFLAGS_COMMON` \$(DEBUG) \$(OPENMP)"
+CFLAGS="`echo $CFLAGS`"
+CXXFLAGS="`echo $CXXFLAGS`"
 
 if [ -z "$LDFLAGS" ]; then
   LDFLAGS="-L./ -L$libdir"
 else
-  LDFLAGS="`echo $LDFLAGS | $STRIPOPT` -L./ -L$libdir"
+  LDFLAGS="`echo $LDFLAGS` -L./ -L$libdir"
 fi
 
 
@@ -925,9 +923,9 @@ test -n "$ECHO" && $ECHO "" >> $VERS_H
 test -n "$ECHO" && $ECHO "" >> $VERS_H
 test -n "$ECHO" && $ECHO "#endif /*$TARGET_UP'_VERSION_H'*/" >> $VERS_H
 
-CFLAGS="$CFLAGS_COMMON `echo $CFLAGS | $STRIPOPT`"
-CXXFLAGS="$CXXFLAGS_COMMON `echo $CXXFLAGS | $STRIPOPT`"
-LDFLAGS="`echo $LDFLAGS | $STRIPOPT` \$(dl) \$(DEVEL_LIBS)"
+CFLAGS="$CFLAGS_COMMON `echo $CFLAGS`"
+CXXFLAGS="$CXXFLAGS_COMMON `echo $CXXFLAGS`"
+LDFLAGS="`echo $LDFLAGS` \$(dl) \$(DEVEL_LIBS)"
 
 test -n "$ECHO" && $ECHO "CFLAGS = $CFLAGS"   >> $CONF
 test -n "$ECHO" && $ECHO "CXXFLAGS = $CXXFLAGS">>$CONF
