@@ -1,3 +1,15 @@
+Version 0.8.8
+
+Kai-Uwe Behrmann (2):
+	* [conf]: remove references to unused fltk tests
+	* [core]: substitute last Net occurence
+
+Petr Gajdos (4):
+	* [core]: move up _BSD_SOURCE
+	* [conf]: xcm is present fix
+	* [conf]: remove STRIPOPT variable
+	* [build]: fix build in oS-factory
+
 Version 0.8.7
 
 Kai-Uwe Behrmann (5):
