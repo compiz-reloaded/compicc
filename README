@@ -55,7 +55,7 @@ Dependencies:
     libxxf86vm-dev
     libxrandr-dev
     libxinerama-dev
-    oyranos-0.1.10 +
+    oyranos-0.9.0 +
     doxygen
     libxfixes-dev
 
