@@ -9,10 +9,8 @@ Prefix:    %{_prefix}
 # for mandriva; the compiz-devel package comes not with dependencies, so fit the compiz way
 %define _disable_ld_no_undefined 1
 
-BuildRequires:       liboyranos-alpha-devel >= 0.4.0
-Requires:            liboyranos0-monitor >= 0.4.0
-Recommends:          oyranos-monitor
-Recommends:          oyranos-monitor-nvidia
+BuildRequires:       liboyranos-devel >= 0.9.0
+Requires:            oyranos-monitor
 Recommends:          oyranos-qcmsevents
 BuildRequires:       compiz < 0.9
 Requires:            compiz < 0.9
