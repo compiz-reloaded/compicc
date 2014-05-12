@@ -97,6 +97,8 @@ static signed long colour_desktop_region_count = -1;
 #define DBG
 #endif
 
+static int icc_profile_flags = 0;
+
 #define DBG_STRING "\n  %s:%d %s() %.02f "
 #define DBG_ARGS (strrchr(__FILE__,'/') ? strrchr(__FILE__,'/')+1 : __FILE__),__LINE__,__func__,(double)clock()/CLOCKS_PER_SEC
 #if defined(PLUGIN_DEBUG)
@@ -237,6 +239,7 @@ static Region absoluteRegion(CompWindow *w, Region region);
 static void damageWindow(CompWindow *w, void *closure);
 static void addWindowRegionCount(CompWindow *w, void * count);
 oyPointer  pluginGetPrivatePointer   ( CompObject        * o );
+static void updateOutputConfiguration( CompScreen *s, CompBool init);
 static int updateIccColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        int                 request );
@@ -262,7 +265,8 @@ static void    setupOutputTable      ( CompScreen        * s,
                                        oyConfig_s        * device,
                                        int                 screen );
 static void    setupColourTable      ( PrivColorContext  * ccontext,
-                                       int                 advanced );
+                                       int                 advanced,
+                                       CompScreen        * s );
 static void changeProperty           ( Display           * display,
                                        Atom                target_atom,
                                        int                 type,
@@ -604,6 +608,10 @@ static void updateWindowRegions(CompWindow *w)
   if(data)
     count += XcolorRegionCount(data, nBytes + 1);
 
+  if(oy_debug)
+  fprintf( stderr, DBG_STRING"XcolorRegionCount+1=%d", DBG_ARGS,
+           count );
+
   pw->pRegion = (PrivColorRegion*) cicc_alloc(count * sizeof(PrivColorRegion));
   if (pw->pRegion == NULL)
     goto out;
@@ -659,6 +667,8 @@ static void updateWindowRegions(CompWindow *w)
             continue;
           }
           pw->pRegion[i].cc[j]->src_profile = profileFromMD5(region->md5);
+          fprintf( stderr, DBG_STRING"region->md5: %s\n", DBG_ARGS,
+                   oyProfile_GetText( pw->pRegion[i].cc[j]->src_profile, oyNAME_DESCRIPTION ) );
 
           pw->pRegion[i].cc[j]->output_name = strdup(
                                                ps->contexts[j].cc.output_name );
@@ -668,12 +678,18 @@ static void updateWindowRegions(CompWindow *w)
 
         if(pw->pRegion[i].cc[j]->src_profile)
           setupColourTable( pw->pRegion[i].cc[j],
-                            getDisplayAdvanced(w->screen, 0) );
+                            getDisplayAdvanced(w->screen, 0), w->screen );
         else
           printf( DBG_STRING "region %lu on %lu has no source profile!\n",
                   DBG_ARGS, i, j );
       }
-    }
+    } else if(oy_debug)
+      fprintf( stderr, DBG_STRING"no region->md5 %d cc=0x%x %d,%d,%dx%d", DBG_ARGS,
+               i, pw->pRegion[i].cc, pw->pRegion[i].xRegion->extents.x1,
+               pw->pRegion[i].xRegion->extents.y1,
+               pw->pRegion[i].xRegion->extents.x2-pw->pRegion[i].xRegion->extents.x1,
+               pw->pRegion[i].xRegion->extents.y2-pw->pRegion[i].xRegion->extents.y1
+ );
 
     region = XcolorRegionNext(region);
   }
@@ -727,6 +743,9 @@ static void cdCreateTexture( PrivColorContext *ccontext )
 
     glGenTextures(1, &ccontext->glTexture);
     glBindTexture(GL_TEXTURE_3D, ccontext->glTexture);
+
+    fprintf( stderr, DBG_STRING"glTexture=%d\n", DBG_ARGS,
+             ccontext->glTexture );
 
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -873,7 +892,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       /* setup the XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE(_xxx) atom as document colour space */
       size_t size = 0;
       oyProfile_s * screen_document_profile = oyProfile_FromStd( oyASSUMED_WEB,
-                                                                 0 );
+                                                        icc_profile_flags, 0 );
 
       if(!screen_document_profile)
         oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1064,7 +1083,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
       /* check that no sRGB is delivered */
       if(t_err)
       {
-        oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+        oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
         if(oyProfile_Equal( web, output->cc.dst_profile ))
         {
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1086,15 +1105,35 @@ static int     getDeviceProfile      ( CompScreen        * s,
   return error;
 }
 
+struct pcc {
+  PrivColorContext * ccontext;
+  int advanced;
+  CompScreen * screen;
+};
+
+static void * setupColourTable_cb( void * data )
+{
+  struct pcc * d = (struct pcc*)data;
+  PrivColorContext * s = d->ccontext;
+
+  setupColourTable( d->ccontext, d->advanced, d->screen );
+  updateOutputConfiguration( d->screen, FALSE );
+
+  return NULL;
+}
+
+
 static void    setupColourTable      ( PrivColorContext  * ccontext,
-                                       int                 advanced )
+                                       int                 advanced,
+                                       CompScreen        * s )
 {
   oyConversion_s * cc;
   int error = 0;
   oyProfile_s * dst_profile = ccontext->dst_profile, * web = 0;
 
     if(!ccontext->dst_profile)
-      dst_profile = web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+      dst_profile = web = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
+
 
     {
       int flags = 0;
@@ -1104,13 +1143,22 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
+      oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
+             DBG_STRING "%s -> %s",
+             DBG_ARGS, oyProfile_GetText( src_profile, oyNAME_DESCRIPTION ),
+                       oyProfile_GetText( dst_profile, oyNAME_DESCRIPTION ) );
 
       /* skip web to web conversion */
       if(!src_profile && web)
+      {
+        oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
+             DBG_STRING "!src_profile && web",
+             DBG_ARGS );
         goto clean_setupColourTable;
+      }
 
       if(!src_profile)
-        src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+        src_profile = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
 
       if(!src_profile)
         oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
@@ -1135,8 +1183,8 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyProfile_Release( &src_profile );
 
-      cc = oyConversion_CreateBasicPixels( image_in, image_out,
-                                                      options, 0 );
+      oyOptions_SetFromText( &options, "////cached", "1", OY_CREATE_NEW );
+      cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
       if (cc == NULL)
       {
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
@@ -1157,9 +1205,32 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                       DBG_ARGS, flags, ccontext->output_name);
         goto clean_setupColourTable;
       }
+      oyOptions_Release( &options );
 
       oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
       oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc", 0 );
+      oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
+
+      if(!blob)
+      {
+        oyConversion_Release( &cc );
+        oyFilterNode_Release( &icc );
+
+        oyOptions_SetFromText( &options, "////icc_module", "lcm2", OY_CREATE_NEW );
+        cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
+        if (cc == NULL)
+        {
+          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "no conversion created for %s",
+                      DBG_ARGS, ccontext->output_name);
+          goto clean_setupColourTable;
+        }
+        oyOptions_Release( &options );
+        error = oyOptions_SetFromText( &options,
+                                     "//"OY_TYPE_STD"/config/display_mode", "1",
+                                     OY_CREATE_NEW );
+        error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, options);
+      }
 
       uint32_t exact_hash_size = 0;
       char * hash_text = 0;
@@ -1287,14 +1358,14 @@ static void    setupOutputTable      ( CompScreen        * s,
     return;
 
 
-  output->cc.src_profile = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+  output->cc.src_profile = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
   output->cc.output_name = strdup(output->name);
   if(!output->cc.src_profile)
     oyCompLogMessage(s->display, "compicc", CompLogLevelWarn,
              DBG_STRING "Output %s: no oyASSUMED_WEB src_profile",
              DBG_ARGS, output->name );
 
-  setupColourTable( &output->cc, getDisplayAdvanced( s, screen ) );
+  setupColourTable( &output->cc, getDisplayAdvanced( s, screen ), s );
 }
 
 static void freeOutput( PrivScreen *ps )
@@ -1514,7 +1585,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
           if(data && n)
           {
             oyProfile_s * sp = oyProfile_FromMem( n, data, 0,0 ); /* server p */
-            oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, 0 );
+            oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
 
             /* The distinction of sRGB profiles set by the server and ones
              * coming from outside the colour server is rather fragile.
@@ -1741,6 +1812,10 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
         goto cleanDrawWindow;
 
 
+      if(oy_debug)
+      fprintf( stderr, DBG_STRING"STENCIL_ID = %d (1 + colour_desktop_region_count=%d * i=%d + pw->stencil_id_start=%d + j=%d)\n", DBG_ARGS,
+               STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j);
+
       w->vCount = w->indexCount = 0;
       (*w->screen->addWindowGeometry) (w, &w->matrix, 1, intersection, region);
 
@@ -1838,7 +1913,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       if(window_region->cc)
         c = window_region->cc[i];
 
-      // TODO
+      /* set last region, which is the window region, to default colour table */
       if(j == pw->nRegions - 1)
       {
         c = &ps->contexts[i].cc;
@@ -1846,15 +1921,34 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                     DBG_STRING "No CLUT found for screen %d / %d / %d",
                     DBG_ARGS, screen, ps->nContexts, j );
+
+        /* test for stencil capabilities to place region ID */
+        GLint stencilBits = 0;
+        glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+        if(stencilBits == 0 && pw->nRegions > 1)
+          c = NULL;
       }
 
       BOX * b = &intersection->extents;
 
-      if(!c || (b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0))
+      if(oy_debug && pw->nRegions != 1)
+        fprintf( stderr, DBG_STRING"STENCIL_ID = %d (1 + colour_desktop_region_count=%d * i=%d + pw->stencil_id_start=%d + j=%d) pw->nRegions=%d glTexture=%d\t%d,%d,%dx%d", DBG_ARGS,
+               STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j,
+               pw->nRegions, c?c->glTexture:-1, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
+
+      if(!c ||
+         (b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0))
         goto cleanDrawTexture;
 
+      if(oy_debug)
+        fprintf( stderr, DBG_STRING"i=%d j=%d glTexture=%d\t%s -> %s %s \t%d,%d,%dx%d", DBG_ARGS,
+               i, j, c->glTexture,
+               oyProfile_GetFileName( c->src_profile, -1 ),
+               oyProfile_GetText( c->dst_profile, oyNAME_DESCRIPTION ),
+               c->output_name, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
+
       /* Set the environment variables */
-      glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 0, 
+      glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 0,
                                 c->scale, c->scale, c->scale, 1.0);
       glProgramEnvParameter4dARB( GL_FRAGMENT_PROGRAM_ARB, param + 1,
                                 c->offset, c->offset, c->offset, 0.0);
@@ -1910,6 +2004,12 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
   while(dbg_switch--)
     sleep(1);
 #endif
+
+  /* select profiles matching actual capabilities */
+  oyFilterNode_s * node = oyFilterNode_NewWith( "//" OY_TYPE_STD "/icc", NULL, 0 );
+  const char * reg = oyFilterNode_GetRegistration( node );
+  icc_profile_flags = oyICCProfileSelectionFlagsFromRegistration( reg );
+  oyFilterNode_Release( &node );
 
   return TRUE;
 }
@@ -2034,6 +2134,10 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
   for(int i = 0; i < ps->nContexts; ++i)
     transform_n += ps->contexts[i].cc.glTexture ? 1:0;
 
+  /* test for stencil capabilities to place region ID */
+  GLint stencilBits = 0;
+  glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+
   if( (atom_time + 10) < icc_color_desktop_last_time ||
       request == 2 )
   {
@@ -2042,7 +2146,7 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
     sprintf( atom_text, "%d %ld %s %s",
              (int)pid, (long)cutime,
              /* say if we can convert, otherwise give only the version number */
-             transform_n ? my_capabilities : "|V0.3|",
+             transform_n ? (stencilBits?my_capabilities:"|ICM|ICR|ICA|V0.3|"):"|V0.3|",
              my_id );
  
    if(attached_profiles)
@@ -2114,7 +2218,10 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   GLint stencilBits = 0;
   glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
   if (stencilBits == 0)
-    return FALSE;
+  {
+    fprintf( stderr, DBG_STRING"stencilBits %d -> limited profile support (ICP)\n", DBG_ARGS,
+             stencilBits );
+  }
 
   WRAP(ps, s, drawWindow, pluginDrawWindow);
   WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
