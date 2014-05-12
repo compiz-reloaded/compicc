@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
- *            2009-2013 (C) Kai-Uwe Behrmann
+ *            2009-2014 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -1846,6 +1846,11 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
                     DBG_STRING "No CLUT found for screen %d / %d / %d",
                     DBG_ARGS, screen, ps->nContexts, j );
+        /* test for stencil capabilities to place region ID */
+        GLint stencilBits = 0;
+        glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+        if(stencilBits == 0 && pw->nRegions > 1)
+          c = NULL;
       }
 
       BOX * b = &intersection->extents;
@@ -2034,6 +2039,10 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
   for(int i = 0; i < ps->nContexts; ++i)
     transform_n += ps->contexts[i].cc.glTexture ? 1:0;
 
+  /* test for stencil capabilities to place region ID */
+  GLint stencilBits = 0;
+  glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+
   if( (atom_time + 10) < icc_color_desktop_last_time ||
       request == 2 )
   {
@@ -2042,7 +2051,7 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
     sprintf( atom_text, "%d %ld %s %s",
              (int)pid, (long)cutime,
              /* say if we can convert, otherwise give only the version number */
-             transform_n ? my_capabilities : "|V0.3|",
+             transform_n ? (stencilBits?my_capabilities:"|ICM|ICR|ICA|V0.3|"):"|V0.3|",
              my_id );
  
    if(attached_profiles)
@@ -2114,7 +2123,10 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   GLint stencilBits = 0;
   glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
   if (stencilBits == 0)
-    return FALSE;
+  {
+    fprintf( stderr, DBG_STRING"stencilBits %d -> limited profile support (ICP)\n", DBG_ARGS,
+             stencilBits );
+  }
 
   WRAP(ps, s, drawWindow, pluginDrawWindow);
   WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
