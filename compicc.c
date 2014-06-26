@@ -1183,7 +1183,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyProfile_Release( &src_profile );
 
-      oyOptions_SetFromText( &options, "////cached", "1", OY_CREATE_NEW );
+      oyOptions_SetFromText( &options, "//cmm/any/cached", "1", OY_CREATE_NEW );
       cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
       if (cc == NULL)
       {
