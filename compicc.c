@@ -1171,7 +1171,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       if(oy_debug)
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
-                      DBG_STRING "oyConversion_Correct(///icc,%d,0) %s %s",
+                      DBG_STRING "oyConversion_Correct(///icc_color,%d,0) %s %s",
                       DBG_ARGS, flags, ccontext->output_name,
                       advanced?"advanced":"");
       oyImage_s * image_in = oyImage_Create( GRIDPOINTS,GRIDPOINTS*GRIDPOINTS,
@@ -1197,18 +1197,18 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       error = oyOptions_SetFromText( &options,
                                      "//"OY_TYPE_STD"/config/display_mode", "1",
                                      OY_CREATE_NEW );
-      error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, options);
+      error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
       if(error)
       {
         oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
-                      DBG_STRING "oyConversion_Correct(///icc,%d,0) failed %s",
+                      DBG_STRING "oyConversion_Correct(///icc_color,%d,0) failed %s",
                       DBG_ARGS, flags, ccontext->output_name);
         goto clean_setupColourTable;
       }
       oyOptions_Release( &options );
 
       oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
-      oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc", 0 );
+      oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
       oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
 
       if(!blob)
@@ -1229,7 +1229,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         error = oyOptions_SetFromText( &options,
                                      "//"OY_TYPE_STD"/config/display_mode", "1",
                                      OY_CREATE_NEW );
-        error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc", flags, options);
+        error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
       }
 
       uint32_t exact_hash_size = 0;
@@ -2006,10 +2006,7 @@ static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *pri
 #endif
 
   /* select profiles matching actual capabilities */
-  oyFilterNode_s * node = oyFilterNode_NewWith( "//" OY_TYPE_STD "/icc", NULL, 0 );
-  const char * reg = oyFilterNode_GetRegistration( node );
-  icc_profile_flags = oyICCProfileSelectionFlagsFromRegistration( reg );
-  oyFilterNode_Release( &node );
+  icc_profile_flags = oyICCProfileSelectionFlagsFromOptions( OY_CMM_STD, "//" OY_TYPE_STD "/icc_color", NULL, 0 );
 
   return TRUE;
 }
