@@ -1149,10 +1149,10 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                        oyProfile_GetText( dst_profile, oyNAME_DESCRIPTION ) );
 
       /* skip web to web conversion */
-      if(!src_profile && web)
+      if(oyProfile_Equal( src_profile, web ))
       {
-        oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
-             DBG_STRING "!src_profile && web",
+        oyCompLogMessage(NULL, "compicc", CompLogLevelDebug,
+             DBG_STRING "src_profile == web",
              DBG_ARGS );
         goto clean_setupColourTable;
       }
