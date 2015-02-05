@@ -122,3 +122,5 @@ Trouble:
     $ oyranos-monitor FakeBRG.icc
     As a result the monitor should swap colours.
 
+    To report bugs you can run compiz with debug info on and send the log text:
+    $ compiz --replace --debug ccp
