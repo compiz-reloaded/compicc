@@ -243,6 +243,10 @@ static void updateOutputConfiguration( CompScreen *s, CompBool init);
 static int updateIccColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        int                 request );
+static oyPointer   getScreenProfile  ( CompScreen        * s,
+                                       int                 screen,
+                                       int                 server,
+                                       size_t            * size );
 static int     hasScreenProfile      ( CompScreen        * s,
                                        int                 screen,
                                        int                 server );
@@ -757,9 +761,13 @@ static void cdCreateTexture( PrivColorContext *ccontext )
                   0, GL_RGB, GL_UNSIGNED_SHORT, ccontext->clut);
 }
 
-static int     hasScreenProfile      ( CompScreen        * s,
+/* returned data is owned by user;
+ * free with XFree(returned_data)
+ */
+static oyPointer   getScreenProfile  ( CompScreen        * s,
                                        int                 screen,
-                                       int                 server )
+                                       int                 server,
+                                       size_t            * size )
 {
   char num[12];
   Window root = RootWindow( s->display->display, 0 );
@@ -783,9 +791,19 @@ static int     hasScreenProfile      ( CompScreen        * s,
 
   data = fetchProperty( s->display->display, root, a, XA_CARDINAL,
                           &n, False);
-  if(data) XFree(data);
+  *size = (size_t)n;
   cicc_free(icc_profile_atom);
-  return (int)n;
+  return data;
+}
+
+static int     hasScreenProfile      ( CompScreen        * s,
+                                       int                 screen,
+                                       int                 server )
+{
+  size_t size = 0;
+  oyPointer data = getScreenProfile( s, screen, server, &size );
+  if(data) XFree(data);
+  return (int)size;
 }
 
 static int     cleanScreenProfile    ( CompScreen        * s,
