@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
- *            2009-2013 (C) Kai-Uwe Behrmann
+ *            2009-2015 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -472,7 +472,13 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
 
   XFlush( dpy );
 
-  int result = XGetWindowProperty(dpy, w, prop, 0, ~0, del, type, &actual, &format, n, &left, &data);
+  int result = XGetWindowProperty( dpy, w, prop, 0, ~0, del, type, &actual,
+                                   &format, n, &left, &data );
+
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "XGetWindowProperty w: %lu atom: %lu n: %lu left: %lu", w, prop, *n, left  );
+
+  if(del)
+  printf( "compicc erasing atom %lu\n", prop );
   if (result == Success)
     return (void *) data;
 
@@ -613,7 +619,7 @@ static void updateWindowRegions(CompWindow *w)
     count += XcolorRegionCount(data, nBytes + 1);
 
   if(oy_debug)
-  fprintf( stderr, DBG_STRING"XcolorRegionCount+1=%d", DBG_ARGS,
+  fprintf( stderr, DBG_STRING"XcolorRegionCount+1=%lu", DBG_ARGS,
            count );
 
   pw->pRegion = (PrivColorRegion*) cicc_alloc(count * sizeof(PrivColorRegion));
@@ -688,8 +694,8 @@ static void updateWindowRegions(CompWindow *w)
                   DBG_ARGS, i, j );
       }
     } else if(oy_debug)
-      fprintf( stderr, DBG_STRING"no region->md5 %d cc=0x%x %d,%d,%dx%d", DBG_ARGS,
-               i, pw->pRegion[i].cc, pw->pRegion[i].xRegion->extents.x1,
+      fprintf( stderr, DBG_STRING"no region->md5 %lu cc=0x%lx %d,%d,%dx%d", DBG_ARGS,
+               i, (unsigned long)pw->pRegion[i].cc, pw->pRegion[i].xRegion->extents.x1,
                pw->pRegion[i].xRegion->extents.y1,
                pw->pRegion[i].xRegion->extents.x2-pw->pRegion[i].xRegion->extents.x1,
                pw->pRegion[i].xRegion->extents.y2-pw->pRegion[i].xRegion->extents.y1
@@ -789,8 +795,17 @@ static oyPointer   getScreenProfile  ( CompScreen        * s,
 
   a = XInternAtom(s->display->display, icc_profile_atom, False);
 
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                    DBG_STRING"fetching profile from %s atom: %d",
+                    DBG_ARGS,
+                    icc_profile_atom, a);
+  
   data = fetchProperty( s->display->display, root, a, XA_CARDINAL,
-                          &n, False);
+                        &n, False);
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                    DBG_STRING"fetching profile, found %lu: %s",
+                    DBG_ARGS,
+                    n, (data == NULL ? "no data":"some data obtained") );
   *size = (size_t)n;
   cicc_free(icc_profile_atom);
   return data;
@@ -829,6 +844,10 @@ static int     cleanScreenProfile    ( CompScreen        * s,
   a = XInternAtom(s->display->display, icc_profile_atom, False);
 
   XFlush( s->display->display );
+  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                    DBG_STRING"remove profile %s atom: %lu screen: %d",
+                    DBG_ARGS,
+                    icc_profile_atom, a, screen );
   XDeleteProperty( s->display->display, root, a );
   return (int)0;
 }
@@ -839,6 +858,10 @@ static void changeProperty           ( Display           * display,
                                        void              * data,
                                        unsigned long       size )
 {
+  oyCompLogMessage( display, "compicc", CompLogLevelDebug,
+                    DBG_STRING"XChangeProperty atom: %lu size: %lu",
+                    DBG_ARGS,
+                    target_atom, size );
     XChangeProperty( display, RootWindow( display, 0 ),
                      target_atom, type, 8, PropModeReplace,
                      data, size );
@@ -937,13 +960,16 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       if(source) cicc_free( source ); source = 0;
     } else
     {
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                        DBG_STRING"delete atom %lu",
+                        DBG_ARGS, source_atom );
       /* clear/erase the _ICC_DEVICE_PROFILE(_xxx) atom */
       XDeleteProperty( s->display->display,root, source_atom );
     }
 
   } else
     if(target_atom && init)
-      oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                         DBG_STRING"icc_colour_server_profile_atom already present %d size:%lu",
                         DBG_ARGS, target_atom, target_n );
 
@@ -957,7 +983,7 @@ void           cleanDisplay          ( Display           * display )
   oyOptions_s * options = 0;
   oyConfigs_s * devices = 0;
   char * display_name = 0, * t;
-  int old_oy_debug, i;
+  int i;
 
     display_name = strdup(XDisplayString(display));
     if(display_name && strchr(display_name,'.'))
@@ -979,7 +1005,7 @@ void           cleanDisplay          ( Display           * display )
       t = cicc_alloc( 8);
     }
 
-    if(t && display_name)
+    if(0 && t && display_name)
     {
       for(i = 0; i < 200; ++i)
       {
@@ -1022,10 +1048,7 @@ void           cleanDisplay          ( Display           * display )
                                    t, OY_CREATE_NEW );
     error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
                                    "refresh", OY_CREATE_NEW );
-    old_oy_debug = oy_debug;
-    /*oy_debug = 1;*/
     error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-    oy_debug = old_oy_debug;
     oyConfigs_Release( &devices );
     oyOptions_Release( &options );
 
@@ -1073,7 +1096,6 @@ static int     getDeviceProfile      ( CompScreen        * s,
     {
       strcpy( output->name, device_name );
 
-
     } else
     {
        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
@@ -1084,6 +1106,44 @@ static int     getDeviceProfile      ( CompScreen        * s,
 
     oyProfile_Release( &output->cc.dst_profile );
 
+    size_t size = 0;
+    int server = 1;
+    /* try to get the device profile atom */
+    oyPointer pp = getScreenProfile( s, screen, server, &size );
+
+    /* check if the normal profile atom is a device profile */
+    if(!pp)
+    {
+      server = 0;
+      pp = getScreenProfile( s, screen, server, &size );
+      if(!pp)
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                      DBG_STRING "no server profile on %s, size: %d",
+                      DBG_ARGS, output->name, (int)size);
+
+      /* filter out ordinary sRGB */
+      if(pp)
+      {
+        oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB,
+                                               icc_profile_flags, 0 );
+        output->cc.dst_profile = oyProfile_FromMem( size, pp, 0,0 );
+        if(oyProfile_Equal( web, output->cc.dst_profile ))
+          oyProfile_Release( &output->cc.dst_profile );
+        oyProfile_Release( &web );
+      } else
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                      DBG_STRING "no normal profile on %s, size: %d",
+                      DBG_ARGS, output->name, (int)size);
+    }
+    if(pp)
+      XFree(pp); pp = NULL;
+
+    if(output->cc.dst_profile)
+    {
+      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                      DBG_STRING "reusing existing profile on %s, size: %d",
+                      DBG_ARGS, output->name, (int)size);
+    } else
     {
       oyOptions_s * options = 0;
       oyOptions_SetFromText( &options,
@@ -1095,7 +1155,14 @@ static int     getDeviceProfile      ( CompScreen        * s,
       oyOptions_SetFromText( &options,
                    "//"OY_TYPE_STD"/config/icc_profile.x_color_region_target",
                                        "yes", OY_CREATE_NEW );
-      t_err = oyDeviceGetProfile( device, options, &output->cc.dst_profile );
+      oyDeviceAskProfile2( device, options, &output->cc.dst_profile );
+      if(!output->cc.dst_profile)
+      {
+        oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                      DBG_STRING "oyDeviceAskProfile2() has no profile %d",
+                      DBG_ARGS, t_err);
+        t_err = oyDeviceGetProfile( device, options, &output->cc.dst_profile );
+      }
       oyOptions_Release( &options );
     }
 
@@ -1107,7 +1174,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
         oyProfile_s * web = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
         if(oyProfile_Equal( web, output->cc.dst_profile ))
         {
-          oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
+          oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                       DBG_STRING "Output %s ignoring sRGB fallback %d %d",
                       DBG_ARGS, output->name, error, t_err);
           oyProfile_Release( &output->cc.dst_profile );
@@ -1135,7 +1202,6 @@ struct pcc {
 static void * setupColourTable_cb( void * data )
 {
   struct pcc * d = (struct pcc*)data;
-  PrivColorContext * s = d->ccontext;
 
   setupColourTable( d->ccontext, d->advanced, d->screen );
   updateOutputConfiguration( d->screen, FALSE );
@@ -1164,7 +1230,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyOptions_s * options = 0;
 
       oyPixel_t pixel_layout = OY_TYPE_123_16;
-      oyCompLogMessage(NULL, "compicc", CompLogLevelWarn,
+      oyCompLogMessage(NULL, "compicc", CompLogLevelDebug,
              DBG_STRING "%s -> %s",
              DBG_ARGS, oyProfile_GetText( src_profile, oyNAME_DESCRIPTION ),
                        oyProfile_GetText( dst_profile, oyNAME_DESCRIPTION ) );
@@ -1190,8 +1256,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       if(advanced)
         flags = oyOPTIONATTRIBUTE_ADVANCED;
 
-      if(oy_debug)
-        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+      oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "oyConversion_Correct(///icc_color,%d,0) %s %s",
                       DBG_ARGS, flags, ccontext->output_name,
                       advanced?"advanced":"");
@@ -1269,8 +1334,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyFilterNode_Release( &icc );
       oyFilterGraph_Release( &cc_graph );
 
-      if(oy_debug)
-        oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+      oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "clut from cache %s %s",
                       DBG_ARGS, clut?"obtained":"", hash_text);
       if(clut)
@@ -1441,7 +1505,7 @@ static void setupOutputs(CompScreen *s)
   /* clean memory */
   {
     freeOutput(ps);
-    cleanDisplayProfiles( s );
+    //cleanDisplayProfiles( s );
   }
 
   n = s->nOutputDev;
@@ -1834,7 +1898,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 
 
       if(oy_debug)
-      fprintf( stderr, DBG_STRING"STENCIL_ID = %d (1 + colour_desktop_region_count=%d * i=%d + pw->stencil_id_start=%d + j=%d)\n", DBG_ARGS,
+      fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%ld * i=%d + pw->stencil_id_start=%lu + j=%d)\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j);
 
       w->vCount = w->indexCount = 0;
@@ -1953,7 +2017,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       BOX * b = &intersection->extents;
 
       if(oy_debug && pw->nRegions != 1)
-        fprintf( stderr, DBG_STRING"STENCIL_ID = %d (1 + colour_desktop_region_count=%d * i=%d + pw->stencil_id_start=%d + j=%d) pw->nRegions=%d glTexture=%d\t%d,%d,%dx%d", DBG_ARGS,
+        fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%d + pw->stencil_id_start=%lu + j=%d) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j,
                pw->nRegions, c?c->glTexture:-1, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
 
@@ -2232,6 +2296,10 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   fprintf( stderr, DBG_STRING"dev %d contexts %ld \n", DBG_ARGS,
           s->nOutputDev, ps->nContexts );
     
+  size_t size = 0;
+  int server = 0;
+  /* try to get the device profile atom */
+  oyPointer pp = getScreenProfile( s, 0, server, &size );
 
   GLint stencilBits = 0;
   glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
