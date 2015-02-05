@@ -1087,8 +1087,8 @@ static int     getDeviceProfile      ( CompScreen        * s,
         if(oyProfile_Equal( web, output->cc.dst_profile ))
         {
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                      DBG_STRING "Output %s ignoring fallback %d",
-                      DBG_ARGS, output->name, error);
+                      DBG_STRING "Output %s ignoring fallback %d %d",
+                      DBG_ARGS, output->name, error, t_err);
           oyProfile_Release( &output->cc.dst_profile );
           error = 1;
         }
