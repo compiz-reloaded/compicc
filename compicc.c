@@ -1071,6 +1071,9 @@ static int     getDeviceProfile      ( CompScreen        * s,
       oyOptions_SetFromText( &options,
                    "//"OY_TYPE_STD"/config/command",
                                        "list", OY_CREATE_NEW );
+      oyOptions_SetFromInt( &options,
+                            "////icc_profile_flags",
+                            icc_profile_flags, 0, OY_CREATE_NEW );
       oyOptions_SetFromText( &options,
                    "//"OY_TYPE_STD"/config/icc_profile.x_color_region_target",
                                        "yes", OY_CREATE_NEW );
@@ -1087,7 +1090,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
         if(oyProfile_Equal( web, output->cc.dst_profile ))
         {
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                      DBG_STRING "Output %s ignoring fallback %d %d",
+                      DBG_STRING "Output %s ignoring sRGB fallback %d %d",
                       DBG_ARGS, output->name, error, t_err);
           oyProfile_Release( &output->cc.dst_profile );
           error = 1;
