@@ -99,7 +99,7 @@ static signed long colour_desktop_region_count = -1;
 
 static int icc_profile_flags = 0;
 
-#define DBG_STRING "\n  %s:%d %s() %.02f "
+#define DBG_STRING " %s:%d %s() %.02f "
 #define DBG_ARGS (strrchr(__FILE__,'/') ? strrchr(__FILE__,'/')+1 : __FILE__),__LINE__,__func__,(double)clock()/CLOCKS_PER_SEC
 #if defined(PLUGIN_DEBUG)
 #define START_CLOCK(text) fprintf( stderr, DBG_STRING text " - ", DBG_ARGS );
@@ -469,13 +469,14 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
   int format;
   unsigned long left;
   unsigned char *data;
+  const char * atom_name = XGetAtomName( dpy, prop );
 
   XFlush( dpy );
 
   int result = XGetWindowProperty( dpy, w, prop, 0, ~0, del, type, &actual,
                                    &format, n, &left, &data );
 
-  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "XGetWindowProperty w: %lu atom: %lu n: %lu left: %lu", w, prop, *n, left  );
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "XGetWindowProperty w: %lu atom: %s n: %lu left: %lu", w, atom_name, *n, left  );
 
   if(del)
   printf( "compicc erasing atom %lu\n", prop );
@@ -803,8 +804,9 @@ static oyPointer   getScreenProfile  ( CompScreen        * s,
   data = fetchProperty( s->display->display, root, a, XA_CARDINAL,
                         &n, False);
   oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                    DBG_STRING"fetching profile, found %lu: %s",
+                    DBG_STRING"fetching %s, found %lu: %s",
                     DBG_ARGS,
+                    icc_profile_atom,
                     n, (data == NULL ? "no data":"some data obtained") );
   *size = (size_t)n;
   cicc_free(icc_profile_atom);
@@ -858,10 +860,11 @@ static void changeProperty           ( Display           * display,
                                        void              * data,
                                        unsigned long       size )
 {
+  const char * atom_name = XGetAtomName( display, target_atom );
   oyCompLogMessage( display, "compicc", CompLogLevelDebug,
-                    DBG_STRING"XChangeProperty atom: %lu size: %lu",
+                    DBG_STRING"XChangeProperty atom: %s size: %lu",
                     DBG_ARGS,
-                    target_atom, size );
+                    atom_name, size );
     XChangeProperty( display, RootWindow( display, 0 ),
                      target_atom, type, 8, PropModeReplace,
                      data, size );
@@ -960,18 +963,22 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
       if(source) cicc_free( source ); source = 0;
     } else
     {
+      const char * atom_name = XGetAtomName( s->display->display, source_atom );
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                        DBG_STRING"delete atom %lu",
-                        DBG_ARGS, source_atom );
+                        DBG_STRING"delete atom %s",
+                        DBG_ARGS, atom_name );
       /* clear/erase the _ICC_DEVICE_PROFILE(_xxx) atom */
       XDeleteProperty( s->display->display,root, source_atom );
     }
 
   } else
     if(target_atom && init)
+  {
+      const char * atom_name = XGetAtomName( s->display->display, target_atom );
       oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                        DBG_STRING"icc_colour_server_profile_atom already present %d size:%lu",
-                        DBG_ARGS, target_atom, target_n );
+                        DBG_STRING"icc_colour_server_profile_atom already present %s size:%lu",
+                        DBG_ARGS, atom_name, target_n );
+  }
 
   if(icc_profile_atom) cicc_free(icc_profile_atom);
   if(icc_colour_server_profile_atom) cicc_free(icc_colour_server_profile_atom);
@@ -1155,13 +1162,19 @@ static int     getDeviceProfile      ( CompScreen        * s,
       oyOptions_SetFromText( &options,
                    "//"OY_TYPE_STD"/config/icc_profile.x_color_region_target",
                                        "yes", OY_CREATE_NEW );
-      oyDeviceAskProfile2( device, options, &output->cc.dst_profile );
-      if(!output->cc.dst_profile)
-      {
+      t_err = oyDeviceAskProfile2( device, options, &output->cc.dst_profile );
+      if(t_err)
         oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                      DBG_STRING "oyDeviceAskProfile2() has no profile %d",
-                      DBG_ARGS, t_err);
+                      DBG_STRING "oyDeviceAskProfile2() returned an issue %s: %d",
+                      DBG_ARGS, output->name, t_err);
+      if(!output->cc.dst_profile || t_err == -1)
+      {
+        int old_t_err = t_err;
         t_err = oyDeviceGetProfile( device, options, &output->cc.dst_profile );
+        oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                      DBG_STRING "oyDeviceAskProfile2() has \"%s\" profile on %s: %d oyDeviceGetProfile() got -> \"%s\" %d",
+                      DBG_ARGS, output->cc.dst_profile ? oyProfile_GetText(output->cc.dst_profile, oyNAME_DESCRIPTION):"----",
+                      output->name, old_t_err, oyProfile_GetText(output->cc.dst_profile, oyNAME_DESCRIPTION), t_err);
       }
       oyOptions_Release( &options );
     }
@@ -1336,10 +1349,10 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "clut from cache %s %s",
-                      DBG_ARGS, clut?"obtained":"", hash_text);
+                      DBG_ARGS, clut?"obtained":"", hash_text );
       if(clut)
       {
-        ptr = oyArray2d_GetData(clut);
+        ptr = (int**)oyArray2d_GetData(clut);
         memcpy( ccontext->clut, ptr[0], 
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       } else
@@ -1373,7 +1386,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
           goto clean_setupColourTable;
         }
 
-        ptr = oyArray2d_GetData(clut);
+        ptr = (int**)oyArray2d_GetData(clut);
         memcpy( ptr[0], ccontext->clut,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
@@ -2299,7 +2312,7 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   size_t size = 0;
   int server = 0;
   /* try to get the device profile atom */
-  oyPointer pp = getScreenProfile( s, 0, server, &size );
+  oyPointer pp = getScreenProfile( s, screen, server, &size );
 
   GLint stencilBits = 0;
   glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
