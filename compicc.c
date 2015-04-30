@@ -1315,7 +1315,8 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         oyConversion_Release( &cc );
         oyFilterNode_Release( &icc );
 
-        oyOptions_SetFromText( &options, "////icc_module", "lcm2", OY_CREATE_NEW );
+        oyOptions_SetFromText( &options, OY_DEFAULT_CMM_CONTEXT, "lcm2",
+                               OY_CREATE_NEW );
         cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
         if (cc == NULL)
         {
