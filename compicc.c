@@ -40,6 +40,7 @@
 
 #include <compiz-common.h>
 
+#include <oyranos.h>
 #include <oyranos_devices.h>
 #include <oyConversion_s.h>
 #include <oyFilterGraph_s.h>
@@ -1234,7 +1235,6 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
     if(!ccontext->dst_profile)
       dst_profile = web = oyProfile_FromStd( oyASSUMED_WEB, icc_profile_flags, 0 );
 
-
     {
       int flags = 0;
       int ** ptr;
@@ -1282,7 +1282,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyProfile_Release( &src_profile );
 
-      oyOptions_SetFromText( &options, "//cmm/any/cached", "1", OY_CREATE_NEW );
+      oyOptions_SetFromText( &options, "org/oyranos/cmm/any/cached", "1", OY_CREATE_NEW );
       cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
       if (cc == NULL)
       {
@@ -1331,6 +1331,8 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                                      "//"OY_TYPE_STD"/config/display_mode", "1",
                                      OY_CREATE_NEW );
         error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
+        icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
+        blob = oyFilterNode_ToBlob( icc, NULL );
       }
 
       if(oy_debug)
@@ -1573,6 +1575,13 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
 
   /* allow Oyranos to see modifications made to the compiz Xlib context */
   XFlush( s->display->display );
+
+  /* reset Oyranos DB cache to see new DB values */
+  oyGetPersistentStrings( NULL );
+  if(oy_debug)
+        printf( DBG_STRING "resetted Oyranos DB cache\n",
+                DBG_ARGS );
+
 
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
