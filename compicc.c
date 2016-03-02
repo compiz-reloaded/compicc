@@ -1306,6 +1306,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       }
       oyOptions_Release( &options );
 
+
       oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
       oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
       oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
@@ -1332,6 +1333,20 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
       }
 
+      if(oy_debug)
+      {
+        oyOptions_s * node_opts = oyFilterNode_GetOptions( icc, 0 );
+        oyProfile_s * dl;
+        dl = oyProfile_FromMem( oyBlob_GetSize( blob ),
+                                oyBlob_GetPointer( blob ), 0,0 );
+        const char * fn;
+        int j = 0;
+        while((fn = oyProfile_GetFileName( dl, j )) != NULL)
+          fprintf( stdout, " -> \"%s\"[%d]", fn?fn:"----", j++ );
+        fprintf( stdout, "\n" );
+        fprintf( stdout, "%s\n", oyOptions_GetText( node_opts, oyNAME_NAME ) );
+      }
+
       uint32_t exact_hash_size = 0;
       char * hash_text = 0;
       const char * t = 0;
@@ -1350,6 +1365,9 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "clut from cache %s %s",
+                      DBG_ARGS, clut?"obtained":"", hash_text );
+      if(oy_debug)
+        printf(       DBG_STRING "clut from cache %s %s",
                       DBG_ARGS, clut?"obtained":"", hash_text );
       if(clut)
       {
@@ -2031,7 +2049,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       BOX * b = &intersection->extents;
 
       if(oy_debug && pw->nRegions != 1)
-        fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%d + pw->stencil_id_start=%lu + j=%d) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d", DBG_ARGS,
+        fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%d + pw->stencil_id_start=%lu + j=%d) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j,
                pw->nRegions, c?c->glTexture:-1, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
 
@@ -2039,8 +2057,8 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
          (b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0))
         goto cleanDrawTexture;
 
-      if(oy_debug)
-        fprintf( stderr, DBG_STRING"i=%d j=%d glTexture=%d\t%s -> %s %s \t%d,%d,%dx%d", DBG_ARGS,
+      if(0 && oy_debug)
+        fprintf( stderr, DBG_STRING"i=%d j=%d glTexture=%d\t%s -> %s %s \t%d,%d,%dx%d\n", DBG_ARGS,
                i, j, c->glTexture,
                oyProfile_GetFileName( c->src_profile, -1 ),
                oyProfile_GetText( c->dst_profile, oyNAME_DESCRIPTION ),
