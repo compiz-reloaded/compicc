@@ -1367,10 +1367,10 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "clut from cache %s %s",
-                      DBG_ARGS, clut?"obtained":"", hash_text );
+                      DBG_ARGS, clut?"obtained":"no", hash_text );
       if(oy_debug)
         printf(       DBG_STRING "clut from cache %s %s",
-                      DBG_ARGS, clut?"obtained":"", hash_text );
+                      DBG_ARGS, clut?"obtained":"no", hash_text );
       if(clut)
       {
         ptr = (int**)oyArray2d_GetData(clut);
@@ -1412,6 +1412,19 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
+      }
+
+      if(oy_debug >= 2)
+      {
+        char * fn = 0;
+        static int c = 0;
+        oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.ppm", c);
+        oyImage_WritePPM(image_out, fn, hash_text);
+        free(fn); fn = 0;
+        oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.icc", c++);
+        FILE*fp=fopen(fn,"w");
+        if(fp) fwrite( oyBlob_GetPointer( blob ), sizeof(char), oyBlob_GetSize( blob ), fp );
+        if(fp) fclose(fp);
       }
 
       if(hash_text)
@@ -1938,7 +1951,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
         goto cleanDrawWindow;
 
 
-      if(oy_debug)
+      if(oy_debug >= 3)
       fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%ld * i=%d + pw->stencil_id_start=%lu + j=%d)\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j);
 
@@ -2057,7 +2070,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
       BOX * b = &intersection->extents;
 
-      if(oy_debug && pw->nRegions != 1)
+      if(oy_debug >= 3 && pw->nRegions != 1)
         fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%d + pw->stencil_id_start=%lu + j=%d) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j,
                pw->nRegions, c?c->glTexture:-1, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
