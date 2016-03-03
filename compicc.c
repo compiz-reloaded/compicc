@@ -57,7 +57,7 @@
         compLogMessage( disp_, plug_in_name, debug_level, format_, __VA_ARGS__ )
 #else
 #define oyCompLogMessage(disp_, plug_in_name, debug_level, format_, ... ) \
-        compLogMessage( plug_in_name, debug_level, format_, __VA_ARGS__ )
+        oy_debug?oyMessageFunc_p(oyMSG_DBG,NULL,format_, __VA_ARGS__):compLogMessage( plug_in_name, debug_level, format_, __VA_ARGS__ )
 #endif
 
 #if OY_COMPIZ_VERSION < 900
@@ -477,7 +477,7 @@ static void *fetchProperty(Display *dpy, Window w, Atom prop, Atom type, unsigne
   int result = XGetWindowProperty( dpy, w, prop, 0, ~0, del, type, &actual,
                                    &format, n, &left, &data );
 
-  oyCompLogMessage(d, "compicc", CompLogLevelDebug, "XGetWindowProperty w: %lu atom: %s n: %lu left: %lu", w, atom_name, *n, left  );
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, DBG_STRING "XGetWindowProperty w: %lu atom: %s n: %lu left: %lu", DBG_ARGS, w, atom_name, *n, left  );
 
   if(del)
   printf( "compicc erasing atom %lu\n", prop );
@@ -621,7 +621,7 @@ static void updateWindowRegions(CompWindow *w)
     count += XcolorRegionCount(data, nBytes + 1);
 
   if(oy_debug)
-  fprintf( stderr, DBG_STRING"XcolorRegionCount+1=%lu", DBG_ARGS,
+  fprintf( stderr, DBG_STRING"XcolorRegionCount+1=%lu\n", DBG_ARGS,
            count );
 
   pw->pRegion = (PrivColorRegion*) cicc_alloc(count * sizeof(PrivColorRegion));
@@ -696,7 +696,7 @@ static void updateWindowRegions(CompWindow *w)
                   DBG_ARGS, i, j );
       }
     } else if(oy_debug)
-      fprintf( stderr, DBG_STRING"no region->md5 %lu cc=0x%lx %d,%d,%dx%d", DBG_ARGS,
+      fprintf( stderr, DBG_STRING"no region->md5 %lu cc=0x%lx %d,%d,%dx%d\n", DBG_ARGS,
                i, (unsigned long)pw->pRegion[i].cc, pw->pRegion[i].xRegion->extents.x1,
                pw->pRegion[i].xRegion->extents.y1,
                pw->pRegion[i].xRegion->extents.x2-pw->pRegion[i].xRegion->extents.x1,
@@ -2483,6 +2483,7 @@ static dispatchObjectProc dispatchFiniObject[] = {
  */
 static CompBool pluginInit(CompPlugin *p)
 {
+  oyMessageFunc_p( oyMSG_DBG, NULL, DBG_STRING, DBG_ARGS );
   return TRUE;
 }
 
