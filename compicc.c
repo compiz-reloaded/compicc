@@ -7,7 +7,7 @@
  *            Fürnkranz' GLSL ppm_viewer
  *  @par Copyright:
  *            2008 (C) Gerhard Fürnkranz, 2008 (C) Tomas Carnecky,
- *            2009-2015 (C) Kai-Uwe Behrmann
+ *            2009-2016 (C) Kai-Uwe Behrmann
  *  @par License:
  *            new BSD <http://www.opensource.org/licenses/bsd-license.php>
  *  @since    2009/02/23
@@ -42,6 +42,7 @@
 
 #include <oyranos.h>
 #include <oyranos_devices.h>
+#include <oyranos_threads.h>
 #include <oyConversion_s.h>
 #include <oyFilterGraph_s.h>
 #include <oyFilterNode_s.h>
@@ -876,113 +877,29 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 init )
 {
   PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
-  char num[12];
-  Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = (char*)cicc_alloc( 1024 ),
-       * icc_colour_server_profile_atom = (char*)cicc_alloc( 1024 );
-  Atom a,da, source_atom, target_atom;
 
-  oyPointer source;
-  oyPointer target;
-  unsigned long source_n = 0, target_n = 0;
-  int updated_icc_color_desktop_atom = 0;
-
-  snprintf( num, 12, "%d", (int)screen );
-  snprintf( icc_profile_atom, 1024, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
-            screen ? "_" : "", screen ? num : "" );
-  snprintf( icc_colour_server_profile_atom, 1024, XCM_DEVICE_PROFILE"%s%s", 
-            screen ? "_" : "", screen ? num : "" );
-
-  a = XInternAtom(s->display->display, icc_profile_atom, False);
-  da = XInternAtom(s->display->display, icc_colour_server_profile_atom, False);
-
-  /* select the atoms */
-  if(init)
   {
-    source_atom = a;
-    target_atom = da;
-  } else
-  {
-    source_atom = da;
-    target_atom = a;
+    oyOptions_s * opts = 0,
+                * result = 0;
+
+    const char * display_name = strdup(XDisplayString(s->display->display));
+    oyOptions_SetFromInt( &opts, "////screen", screen, 0, OY_CREATE_NEW );
+    oyOptions_SetFromInt( &opts, "////setup", init, 0, OY_CREATE_NEW );
+    oyOptions_SetFromText( &opts, "////display_name",
+                           display_name, OY_CREATE_NEW );
+
+    oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
+                  DBG_STRING "Moving profiles on %s: for screen %d setup %d",
+                  DBG_ARGS, display_name, screen, init );
+    //fprintf( stderr, "Moving profiles on %s: for screen %d setup %d\n",
+    //                 display_name, screen, init );
+    oyOptions_Handle( "//"OY_TYPE_STD"/move_color_server_profiles",
+                                opts,"move_color_server_profiles",
+                                &result );
+    oyOptions_Release( &opts );
+    oyOptions_Release( &result );
+    return;
   }
-
-  target = fetchProperty( s->display->display, root, target_atom, XA_CARDINAL,
-                          &target_n, False);
-
-  if( !target_n ||
-      (target_n && !init) )
-  {
-    /* copy the real device atom */
-    source = fetchProperty( s->display->display, root, source_atom, XA_CARDINAL,
-                            &source_n, False);
-
-    /* _ICC_COLOR_DESKTOP atom is set before any _ICC_PROFILE(_xxx) changes. */
-    if(init)
-    {
-      updateIccColorDesktopAtom( s, ps, 2 );
-      updated_icc_color_desktop_atom = 1;
-    }
-    if(source_n)
-    {
-      changeProperty ( s->display->display,
-                       target_atom, XA_CARDINAL,
-                       source, source_n );
-    }
-    if(source) XFree( source );
-    source = 0; source_n = 0;
-
-    if(init)
-    {
-      /* setup the XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE(_xxx) atom as document colour space */
-      size_t size = 0;
-      oyProfile_s * screen_document_profile = oyProfile_FromStd( oyASSUMED_WEB,
-                                                        icc_profile_flags, 0 );
-
-      if(!screen_document_profile)
-        oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                          DBG_STRING"Could not get oyASSUMED_WEB", DBG_ARGS);
-
-      /* make shure the profile is ignored */
-
-      source = oyProfile_GetMem( screen_document_profile, &size, 0, cicc_alloc );
-      oyProfile_Release( &screen_document_profile );
-      source_n = size;
-
-      if(!updated_icc_color_desktop_atom)
-      {
-        updateIccColorDesktopAtom( s, ps, 2 );
-        updated_icc_color_desktop_atom = 1;
-      }
-
-      if(source_n)
-      {
-        changeProperty ( s->display->display,
-                         source_atom, XA_CARDINAL,
-                         source, source_n );
-      }
-      if(source) cicc_free( source ); source = 0;
-    } else
-    {
-      const char * atom_name = XGetAtomName( s->display->display, source_atom );
-      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                        DBG_STRING"delete atom %s",
-                        DBG_ARGS, atom_name );
-      /* clear/erase the _ICC_DEVICE_PROFILE(_xxx) atom */
-      XDeleteProperty( s->display->display,root, source_atom );
-    }
-
-  } else
-    if(target_atom && init)
-  {
-      const char * atom_name = XGetAtomName( s->display->display, target_atom );
-      oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                        DBG_STRING"icc_colour_server_profile_atom already present %s size:%lu",
-                        DBG_ARGS, atom_name, target_n );
-  }
-
-  if(icc_profile_atom) cicc_free(icc_profile_atom);
-  if(icc_colour_server_profile_atom) cicc_free(icc_colour_server_profile_atom);
 }
 
 void           cleanDisplay          ( Display           * display )
@@ -1207,20 +1124,36 @@ static int     getDeviceProfile      ( CompScreen        * s,
   return error;
 }
 
-struct pcc {
+typedef struct pcc_s {
   PrivColorContext * ccontext;
   int advanced;
   CompScreen * screen;
-};
+} pcc_t;
 
 static void * setupColourTable_cb( void * data )
 {
-  struct pcc * d = (struct pcc*)data;
+  pcc_t * d = (pcc_t*)data;
 
   setupColourTable( d->ccontext, d->advanced, d->screen );
   updateOutputConfiguration( d->screen, FALSE );
 
   return NULL;
+}
+static void iccProgressCallback (    double              progress_zero_till_one,
+                                     char              * status_text,
+                                     int                 thread_id_,
+                                     int                 job_id,
+                                     oyStruct_s        * cb_progress_context )
+{
+  oyPointer_s * context = (oyPointer_s *) cb_progress_context;
+  pcc_t * pcontext = (pcc_t*) oyPointer_GetPointer( context );
+  printf( "%s() job_id: %d thread: %d %g\n", __func__, job_id, thread_id_,
+          progress_zero_till_one );
+  if(progress_zero_till_one >= 1.0)
+  {
+    setupColourTable_cb( pcontext );
+    free(pcontext);
+  }
 }
 
 
@@ -1282,7 +1215,21 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyProfile_Release( &src_profile );
 
-      oyOptions_SetFromText( &options, "org/oyranos/cmm/any/cached", "1", OY_CREATE_NEW );
+      oyJob_s * job = oyJob_New(0);
+      job->cb_progress = iccProgressCallback;
+      oyPointer_s * oy_ptr = oyPointer_New(0);
+      pcc_t * pcc   = calloc( sizeof(pcc_t), 1 );
+      pcc->ccontext = ccontext;
+      pcc->advanced = advanced;
+      pcc->screen = s;
+      oyPointer_Set( oy_ptr,
+                     __FILE__,
+                     "struct pcc_s*",
+                     pcc, 0, 0 );
+      job->cb_progress_context = (oyStruct_s*) oyPointer_Copy( oy_ptr, 0 );
+      oyOptions_MoveInStruct( &options, OY_BEHAVIOUR_STD "/expensive_callback", (oyStruct_s**)&job, OY_CREATE_NEW );
+      /* wait no longer than approximately 1 seconds */
+      oyOptions_SetFromText( &options, OY_BEHAVIOUR_STD "/expensive", "10", OY_CREATE_NEW );
       cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
       if (cc == NULL)
       {
