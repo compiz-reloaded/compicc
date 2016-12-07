@@ -249,17 +249,11 @@ static oyPointer   getScreenProfile  ( CompScreen        * s,
                                        int                 screen,
                                        int                 server,
                                        size_t            * size );
-static int     hasScreenProfile      ( CompScreen        * s,
-                                       int                 screen,
-                                       int                 server );
+int            needUpdate            ( Display           * display );
 static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init );
 void           cleanDisplayProfiles  ( CompScreen        * s );
-static int     cleanScreenProfile    ( CompScreen        * s,
-                                       int                 screen,
-                                       int                 server );
-void           cleanDisplay          ( Display           * display );
 static int     getDisplayAdvanced    ( CompScreen        * s,
                                        int                 screen );
 static int     getDeviceProfile      ( CompScreen        * s,
@@ -815,47 +809,6 @@ static oyPointer   getScreenProfile  ( CompScreen        * s,
   return data;
 }
 
-static int     hasScreenProfile      ( CompScreen        * s,
-                                       int                 screen,
-                                       int                 server )
-{
-  size_t size = 0;
-  oyPointer data = getScreenProfile( s, screen, server, &size );
-  if(data) XFree(data);
-  return (int)size;
-}
-
-static int     cleanScreenProfile    ( CompScreen        * s,
-                                       int                 screen,
-                                       int                 server )
-{
-  char num[12];
-  Window root = RootWindow( s->display->display, 0 );
-  char * icc_profile_atom = (char*)cicc_alloc( 1024 );
-  Atom a;
-
-  if(!icc_profile_atom) return 0;
-
-  snprintf( num, 12, "%d", (int)screen );
-  if(server)
-  snprintf( icc_profile_atom, 1024, XCM_DEVICE_PROFILE"%s%s", 
-            screen ? "_" : "", screen ? num : "" );
-  else
-  snprintf( icc_profile_atom, 1024, XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"%s%s", 
-            screen ? "_" : "", screen ? num : "" );
-
-
-  a = XInternAtom(s->display->display, icc_profile_atom, False);
-
-  XFlush( s->display->display );
-  oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
-                    DBG_STRING"remove profile %s atom: %lu screen: %d",
-                    DBG_ARGS,
-                    icc_profile_atom, a, screen );
-  XDeleteProperty( s->display->display, root, a );
-  return (int)0;
-}
-
 static void changeProperty           ( Display           * display,
                                        Atom                target_atom,
                                        int                 type,
@@ -883,102 +836,28 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                 * result = 0;
 
     const char * display_name = strdup(XDisplayString(s->display->display));
-    oyOptions_SetFromInt( &opts, "////screen", screen, 0, OY_CREATE_NEW );
-    oyOptions_SetFromInt( &opts, "////setup", init, 0, OY_CREATE_NEW );
+
     oyOptions_SetFromText( &opts, "////display_name",
                            display_name, OY_CREATE_NEW );
+    if(screen == 0)
+      oyOptions_Handle( "//" OY_TYPE_STD "/clean_profiles",
+                                opts,"clean_profiles",
+                                &result );
 
+    oyOptions_SetFromInt( &opts, "////screen", screen, 0, OY_CREATE_NEW );
+    oyOptions_SetFromInt( &opts, "////setup", init, 0, OY_CREATE_NEW );
     oyCompLogMessage( s->display, "compicc", CompLogLevelDebug,
                   DBG_STRING "Moving profiles on %s: for screen %d setup %d",
                   DBG_ARGS, display_name, screen, init );
     //fprintf( stderr, "Moving profiles on %s: for screen %d setup %d\n",
     //                 display_name, screen, init );
-    oyOptions_Handle( "//"OY_TYPE_STD"/move_color_server_profiles",
+    oyOptions_Handle( "//" OY_TYPE_STD "/move_color_server_profiles",
                                 opts,"move_color_server_profiles",
                                 &result );
     oyOptions_Release( &opts );
     oyOptions_Release( &result );
     return;
   }
-}
-
-void           cleanDisplay          ( Display           * display )
-{
-  int error = 0;
-  oyOptions_s * options = 0;
-  oyConfigs_s * devices = 0;
-  char * display_name = 0, * t;
-  int i;
-
-    display_name = strdup(XDisplayString(display));
-    if(display_name && strchr(display_name,'.'))
-    {
-      t = strrchr(display_name,'.');
-      t[0] = 0;
-    }
-
-    /* clean up old displays */
-    error = oyOptions_SetFromText( &options,
-                                   "//"OY_TYPE_STD"/config/command",
-                                   "unset", OY_CREATE_NEW );
-    if(display_name)
-    {
-      t = cicc_alloc( strlen(display_name) + 8 );
-    } else
-    {
-      display_name = strdup(":0");
-      t = cicc_alloc( 8);
-    }
-
-    if(0 && t && display_name)
-    {
-      for(i = 0; i < 200; ++i)
-      {
-        sprintf( t, "%s.%d", display_name, i );
-        error = oyOptions_SetFromText( &options,
-                                       "//" OY_TYPE_STD "/config/device_name",
-                                       t, OY_CREATE_NEW );
-        error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-        if(error != 0) i = 200;
-        oyConfigs_Release( &devices );
-      }
-    }
-    oyOptions_Release( &options );
-
-
-    /* get number of connected devices */
-    error = oyOptions_SetFromText( &options,
-                                   "//"OY_TYPE_STD"/config/command",
-                                   "list", OY_CREATE_NEW );
-    error = oyOptions_SetFromText( &options,
-                                   "//" OY_TYPE_STD "/config/display_name",
-                                   display_name, OY_CREATE_NEW );
-    error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-    oyConfigs_Release( &devices );
-    oyOptions_Release( &options );
-
-    /** Monitor hotplugs can easily mess up the ICC profile to device assigment.
-     *  So first we erase the _ICC_PROFILE(_xxx) to get a clean state.
-     *  We setup the EDID atoms and ICC profiles new.
-     *  The ICC profiles are moved to the right places through the 
-     *  PropertyChange events recieved by the colour server.
-     */
-
-    /* refresh EDID */
-    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
-                                   "list", OY_CREATE_NEW );
-    sprintf( t, "%s.%d", display_name, 0 );
-    error = oyOptions_SetFromText( &options,
-                                   "//" OY_TYPE_STD "/config/device_name",
-                                   t, OY_CREATE_NEW );
-    error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
-                                   "refresh", OY_CREATE_NEW );
-    error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
-    oyConfigs_Release( &devices );
-    oyOptions_Release( &options );
-
-    cicc_free(display_name); display_name = 0;
-    cicc_free(t); t = 0;
 }
 
 static int     getDeviceProfile      ( CompScreen        * s,
@@ -1072,13 +951,13 @@ static int     getDeviceProfile      ( CompScreen        * s,
     {
       oyOptions_s * options = 0;
       oyOptions_SetFromText( &options,
-                   "//"OY_TYPE_STD"/config/command",
+                   "//" OY_TYPE_STD "/config/command",
                                        "list", OY_CREATE_NEW );
       oyOptions_SetFromInt( &options,
                             "////icc_profile_flags",
                             icc_profile_flags, 0, OY_CREATE_NEW );
       oyOptions_SetFromText( &options,
-                   "//"OY_TYPE_STD"/config/icc_profile.x_color_region_target",
+                   "//" OY_TYPE_STD "/config/icc_profile.x_color_region_target",
                                        "yes", OY_CREATE_NEW );
       t_err = oyDeviceAskProfile2( device, options, &output->cc.dst_profile );
       if(t_err)
@@ -1241,7 +1120,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyOptions_Release( &options );
 
       error = oyOptions_SetFromText( &options,
-                                     "//"OY_TYPE_STD"/config/display_mode", "1",
+                                     "//" OY_TYPE_STD "/config/display_mode", "1",
                                      OY_CREATE_NEW );
       error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
       if(error)
@@ -1466,26 +1345,23 @@ static void freeOutput( PrivScreen *ps )
 
 void cleanDisplayProfiles( CompScreen *s )
 {
+    oyOptions_s * opts = 0,
+                * result = 0;
+
+    const char * display_name = strdup(XDisplayString(s->display->display));
+
+    oyOptions_SetFromText( &opts, "////display_name",
+                           display_name, OY_CREATE_NEW );
+    oyOptions_Handle( "//" OY_TYPE_STD "/clean_profiles",
+                                opts,"clean_profiles",
+                                &result );
+    return;
+
   int error = 0,
       n,
       screen;
   oyConfigs_s * devices = 0;
 
-    /* get number of connected devices */
-    error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
-    if(error > 0)
-          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
-                      DBG_STRING "oyDevicesGet() error: %d",
-                      DBG_ARGS, error);
-    n = oyConfigs_Count( devices );
-    oyConfigs_Release( &devices );
-
-    for(screen = 0; screen < n; ++screen)
-    {
-      int server_profile = 1;
-      if(hasScreenProfile( s, screen, server_profile ))
-        cleanScreenProfile( s, screen, server_profile );
-    }
 }
 
 /**
@@ -1499,7 +1375,8 @@ static void setupOutputs(CompScreen *s)
   /* clean memory */
   {
     freeOutput(ps);
-    //cleanDisplayProfiles( s );
+
+    cleanDisplayProfiles( s );
   }
 
   n = s->nOutputDev;
@@ -1515,8 +1392,65 @@ static void setupOutputs(CompScreen *s)
 
   /* allow Oyranos to see modifications made to the compiz Xlib context */
   XFlush( s->display->display );
+}
 
-  cleanDisplay( s->display->display );
+oyConfigs_s * old_devices = NULL;
+int            needUpdate            ( Display           * display )
+{
+  int error = 0,
+      i, n, update = 0;
+  oyOptions_s * options = 0;
+  oyConfigs_s * devices = 0;
+  oyConfig_s * device = 0, * old_device = 0;
+
+
+  /* allow Oyranos to see modifications made to the compiz Xlib context */
+  XFlush( display );
+
+  /* obtain device informations, including geometry and ICC profiles
+     from the according Oyranos module */
+  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
+                                 "list", OY_CREATE_NEW );
+  if(error) fprintf(stdout,"%s %d", "found issues",error);
+  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
+                                 "true", OY_CREATE_NEW );
+  if(error) fprintf(stdout,"%s %d", "found issues",error);
+  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
+                                 "refresh", OY_CREATE_NEW );
+  error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
+  if(error) fprintf(stdout,"%s %d", "found issues",error);
+  n = oyOptions_Count( options );
+  oyOptions_Release( &options );
+
+  n = oyConfigs_Count( devices );
+  /* find out if monitors have changed at all
+   * care only about EDID's and enumeration, no dimension */
+  if(n != oyConfigs_Count( old_devices ))
+    update = 1;
+  else
+  for(i = 0; i < n; ++i)
+  {
+    const char * edid, * old_edid;
+    device = oyConfigs_Get( devices, i );
+    old_device = oyConfigs_Get( old_devices, i );
+    edid = oyOptions_FindString( *oyConfig_GetOptions(device,"backend_core"),"EDID",0 );
+    old_edid = oyOptions_FindString( *oyConfig_GetOptions(old_device,"backend_core"),"EDID",0 );
+
+    if(edid && old_edid && strcmp(edid,old_edid)==0)
+      update = 0;
+    else
+      update = 1;
+
+    oyConfig_Release( &device );
+    oyConfig_Release( &old_device );
+    if(update) break;
+  }
+
+  oyConfigs_Release( &old_devices );
+  old_devices = devices;
+
+  fprintf( stderr,"%s:%d %s() update: %d\n", __FILE__, __LINE__, __func__, update);
+  return update;
 }
 
 /**
@@ -1717,7 +1651,8 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       }
 
     /* update for changing geometry */
-    } else if (event->xproperty.atom == pd->netDesktopGeometry)
+    } else if (event->xproperty.atom == pd->netDesktopGeometry &&
+               needUpdate(s->display->display))
     {
       setupOutputs( s );
       updateOutputConfiguration(s, TRUE);
@@ -1735,6 +1670,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
       if(rrn->subtype == RRNotify_OutputChange)
       {
         CompScreen *s = findScreenAtDisplay(d, rrn->window);
+        if(needUpdate(s->display->display))
         {
           setupOutputs( s );
           updateOutputConfiguration(s, TRUE);
