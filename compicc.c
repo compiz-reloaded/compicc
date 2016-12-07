@@ -241,7 +241,9 @@ static Region absoluteRegion(CompWindow *w, Region region);
 static void damageWindow(CompWindow *w, void *closure);
 static void addWindowRegionCount(CompWindow *w, void * count);
 oyPointer  pluginGetPrivatePointer   ( CompObject        * o );
-static void updateOutputConfiguration( CompScreen *s, CompBool init);
+static void updateOutputConfiguration( CompScreen        * s,
+                                       CompBool            init,
+                                       int                 screen );
 static int updateIccColorDesktopAtom ( CompScreen        * s,
                                        PrivScreen        * ps,
                                        int                 request );
@@ -839,10 +841,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
     oyOptions_SetFromText( &opts, "////display_name",
                            display_name, OY_CREATE_NEW );
-    if(screen == 0)
-      oyOptions_Handle( "//" OY_TYPE_STD "/clean_profiles",
-                                opts,"clean_profiles",
-                                &result );
 
     oyOptions_SetFromInt( &opts, "////screen", screen, 0, OY_CREATE_NEW );
     oyOptions_SetFromInt( &opts, "////setup", init, 0, OY_CREATE_NEW );
@@ -1014,7 +1012,7 @@ static void * setupColourTable_cb( void * data )
   pcc_t * d = (pcc_t*)data;
 
   setupColourTable( d->ccontext, d->advanced, d->screen );
-  updateOutputConfiguration( d->screen, FALSE );
+  updateOutputConfiguration( d->screen, FALSE, -1 );
 
   return NULL;
 }
@@ -1356,12 +1354,6 @@ void cleanDisplayProfiles( CompScreen *s )
                                 opts,"clean_profiles",
                                 &result );
     return;
-
-  int error = 0,
-      n,
-      screen;
-  oyConfigs_s * devices = 0;
-
 }
 
 /**
@@ -1458,7 +1450,7 @@ int            needUpdate            ( Display           * display )
  * output profiles (if available) or fall back to sRGB.
  * Device profiles are obtained from Oyranos only once at beginning.
  */
-static void updateOutputConfiguration(CompScreen *s, CompBool init)
+static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int error = 0,
@@ -1494,6 +1486,9 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init)
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
   {
+    if( screen >= 0 && i != screen )
+      continue;
+
     device = oyConfigs_Get( devices, i );
 
     if(init)
@@ -1646,7 +1641,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
            /* change only existing profiles, ignore removed ones */
            n)
         {
-          updateOutputConfiguration( s, FALSE );
+          updateOutputConfiguration( s, FALSE, screen );
         }
       }
 
@@ -1655,10 +1650,10 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
                needUpdate(s->display->display))
     {
       setupOutputs( s );
-      updateOutputConfiguration(s, TRUE);
+      updateOutputConfiguration(s, TRUE, -1);
     } else if (event->xproperty.atom == pd->iccDisplayAdvanced)
     {
-      updateOutputConfiguration( s, FALSE );
+      updateOutputConfiguration( s, FALSE, -1 );
     }
 
     break;
@@ -1673,7 +1668,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         if(needUpdate(s->display->display))
         {
           setupOutputs( s );
-          updateOutputConfiguration(s, TRUE);
+          updateOutputConfiguration(s, TRUE, -1);
         }
       }
     }
@@ -1685,7 +1680,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   if(s && ps && s->nOutputDev != ps->nContexts)
   {
     setupOutputs( s );
-    updateOutputConfiguration( s, TRUE);
+    updateOutputConfiguration( s, TRUE, -1);
   }
 }
 
