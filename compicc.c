@@ -1422,13 +1422,15 @@ int            needUpdate            ( Display           * display )
   else
   for(i = 0; i < n; ++i)
   {
-    const char * edid, * old_edid;
+    const char * edid, * old_edid, * rect, * old_rect;
     device = oyConfigs_Get( devices, i );
     old_device = oyConfigs_Get( old_devices, i );
     edid = oyOptions_FindString( *oyConfig_GetOptions(device,"backend_core"),"EDID",0 );
     old_edid = oyOptions_FindString( *oyConfig_GetOptions(old_device,"backend_core"),"EDID",0 );
+    rect = oyOptions_FindString( *oyConfig_GetOptions(device,"backend_core"),"display_geometry",0 );
+    old_rect = oyOptions_FindString( *oyConfig_GetOptions(old_device,"backend_core"),"display_geometry",0 );
 
-    if(edid && old_edid && strcmp(edid,old_edid)==0)
+    if(edid && old_edid && strcmp(edid,old_edid)==0 && strcmp(rect,old_rect)==0)
       update = 0;
     else
       update = 1;
