@@ -23,6 +23,16 @@ generate on the fly from the monitors EDID data block, if not
 try from the Xorg log and as a last means take sRGB, if not 
 fail miserably ;-)
 
+* instant desktop colour correction on GPU with compiz
+* multi monitor support
+* ICC Profile in X support
+* X Color Management 0.3 DRAFT1 support
+* EDID -> ICC profile on the fly
+* 16-bit per channel compositing
+* hotplug capable
+* wide gamut monitor calibration
+* support 30-bit monitors
+
 CompICC is a opt out colour correction mechanism. This means, CompICC does 
 its work unquestioned. This implicit style of colour management helps to 
 render a consistent desktop. Naive applications can continue to assume they
@@ -41,8 +51,9 @@ calibration and ICC profiling.
 
 ### Links
 * [Development & Sources](https://github.com/compiz-reloaded/compicc)
+* [Download](https://github.com/compiz-reloaded/compicc/releases)
 * [Authors](AUTHORS.md)
-* [Copyright](COPYING.md)
+* [Copyright](COPYING.md) BSD
 * [ChangeLog](ChangeLog.md)
 
 ### Dependencies
@@ -105,7 +116,8 @@ in the same way.
 
 ### Usage
 Use ccsm to switch the plugin on. Its named Colour Management, but might be
-translated according to your locale settings.
+translated according to your locale settings. It is located under the workspace category.
+
 Advanced settiging can be activated by setting a root window
 Atom called \_ICC\_COLOR\_DISPLAY\_ADVANCED to "1". 
 Setting to "0" will nethertheless update the colour transformations in 
@@ -140,6 +152,8 @@ A false colour profile is good for clear diagnostic:
     $ oyranos-monitor FakeBRG.icc
 
 As a result the monitor should swap colours.
+
+For a colorimetric verification use ArgyllCMS and a according color measurement device. The ICC profile attached to each monitor can be checked with tools like KolorManager, ICC Examin, oyranos-config-synnefo GUIs or oyranos-monitor on the command line.
 
 To report bugs you can run compiz with debug info on and send the log text:
 
