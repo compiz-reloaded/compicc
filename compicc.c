@@ -327,7 +327,7 @@ static inline unsigned long XcolorProfileCount(void *data, unsigned long nBytes)
 {
 	unsigned long count = 0;
 
-	for (XcolorProfile *ptr = data; (intptr_t) ptr < (intptr_t)data + nBytes; ptr = XcolorProfileNext(ptr))
+	for (XcolorProfile *ptr = data; (intptr_t) ptr < (intptr_t)(data + nBytes); ptr = XcolorProfileNext(ptr))
 		++count;
 
 	return count;
@@ -339,7 +339,7 @@ static inline XcolorRegion *XcolorRegionNext(XcolorRegion *region)
   return (XcolorRegion *) (ptr + sizeof(XcolorRegion));
 }
 
-static inline unsigned long XcolorRegionCount(void *data, unsigned long nBytes)
+static inline unsigned long XcolorRegionCount(void *data OY_UNUSED, unsigned long nBytes)
 {
   return nBytes / sizeof(XcolorRegion);
 }
@@ -831,8 +831,6 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
                                        int                 screen,
                                        int                 init )
 {
-  PrivScreen * ps = compObjectGetPrivate((CompObject *) s);
-
   {
     oyOptions_s * opts = 0,
                 * result = 0;
@@ -938,7 +936,7 @@ static int     getDeviceProfile      ( CompScreen        * s,
                       DBG_ARGS, output->name, (int)size);
     }
     if(pp)
-      XFree(pp); pp = NULL;
+    { XFree(pp); pp = NULL; }
 
     if(output->cc.dst_profile)
     {
@@ -1017,7 +1015,7 @@ static void * setupColourTable_cb( void * data )
   return NULL;
 }
 static void iccProgressCallback (    double              progress_zero_till_one,
-                                     char              * status_text,
+                                     char              * status_text OY_UNUSED,
                                      int                 thread_id_,
                                      int                 job_id,
                                      oyStruct_s        * cb_progress_context )
@@ -1279,7 +1277,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 }
 
 static int     getDisplayAdvanced    ( CompScreen        * s,
-                                       int                 screen )
+                                       int                 screen OY_UNUSED )
 {
   CompDisplay * d = s->display;
   PrivDisplay * pd = compObjectGetPrivate((CompObject *) d);
@@ -1297,13 +1295,13 @@ static int     getDisplayAdvanced    ( CompScreen        * s,
   if(opt && nBytes && atoi(opt) > 0)
         advanced = atoi(opt);
   if(opt)
-        XFree( opt ); opt = 0;
+  {     XFree( opt ); opt = 0; }
 
   return advanced;
 }
 
 static void    setupOutputTable      ( CompScreen        * s,
-                                       oyConfig_s        * device,
+                                       oyConfig_s        * device OY_UNUSED,
                                        int                 screen )
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
@@ -1488,7 +1486,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
   {
-    if( screen >= 0 && i != screen )
+    if( screen >= 0 && (int)i != screen )
       continue;
 
     device = oyConfigs_Get( devices, i );
@@ -1586,7 +1584,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
         if(strlen(atom_name) > strlen(XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE"_"))
         sscanf( (const char*)atom_name,
                 XCM_ICC_V0_3_TARGET_PROFILE_IN_X_BASE "_%d", &screen );
-        snprintf( num, 12, "%d", (int)screen );
+        snprintf( num, 12, "%d", screen );
 
         snprintf( icc_colour_server_profile_atom, 1024,
                   XCM_DEVICE_PROFILE"%s%s",
@@ -1619,7 +1617,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
 
             if(sp)
             {
-              if(ps->nContexts > screen)
+              if((int)ps->nContexts > screen)
               {
                 oyProfile_Release( &ps->contexts[screen].cc.dst_profile );
                 ps->contexts[screen].cc.dst_profile = sp;
@@ -1679,7 +1677,7 @@ static void pluginHandleEvent(CompDisplay *d, XEvent *event)
   }
 
   /* initialise */
-  if(s && ps && s->nOutputDev != ps->nContexts)
+  if(s && ps && s->nOutputDev != (int)ps->nContexts)
   {
     setupOutputs( s );
     updateOutputConfiguration( s, TRUE, -1);
@@ -1755,7 +1753,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 {
   CompScreen *s = w->screen;
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
-  int i,j;
+  unsigned long i,j;
 
   /* check every 10 seconds */
   time_t  cutime;         /* Time since epoch */
@@ -1832,7 +1830,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
 
 
       if(oy_debug >= 3)
-      fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%ld * i=%d + pw->stencil_id_start=%lu + j=%d)\n", DBG_ARGS,
+      fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%ld * i=%lu + pw->stencil_id_start=%lu + j=%lu)\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j);
 
       w->vCount = w->indexCount = 0;
@@ -1900,7 +1898,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   } else
     glEnable(GL_SCISSOR_TEST);
 
-  int i,j;
+  unsigned long i, j;
   for(i = 0; i < ps->nContexts; ++i)
   {
     Region tmp = 0;
@@ -1938,7 +1936,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
         c = &ps->contexts[i].cc;
         if(!c)
           oyCompLogMessage( s->display, "compicc", CompLogLevelWarn,
-                    DBG_STRING "No CLUT found for screen %d / %d / %d",
+                    DBG_STRING "No CLUT found for screen %d / %d / %lu",
                     DBG_ARGS, screen, ps->nContexts, j );
 
         /* test for stencil capabilities to place region ID */
@@ -1951,16 +1949,16 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       BOX * b = &intersection->extents;
 
       if(oy_debug >= 3 && pw->nRegions != 1)
-        fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%d + pw->stencil_id_start=%lu + j=%d) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d\n", DBG_ARGS,
+        fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%lu * i=%lu + pw->stencil_id_start=%lu + j=%lu) pw->nRegions=%lu glTexture=%u\t%d,%d,%dx%d\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j,
-               pw->nRegions, c?c->glTexture:-1, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
+               pw->nRegions, c?c->glTexture:0, b->x1, b->y1, b->x2-b->x1, b->y2-b->y1 );
 
       if(!c ||
          (b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0))
         goto cleanDrawTexture;
 
       if(0 && oy_debug)
-        fprintf( stderr, DBG_STRING"i=%d j=%d glTexture=%d\t%s -> %s %s \t%d,%d,%dx%d\n", DBG_ARGS,
+        fprintf( stderr, DBG_STRING"i=%lu j=%lu glTexture=%d\t%s -> %s %s \t%d,%d,%dx%d\n", DBG_ARGS,
                i, j, c->glTexture,
                oyProfile_GetFileName( c->src_profile, -1 ),
                oyProfile_GetText( c->dst_profile, oyNAME_DESCRIPTION ),
@@ -2015,7 +2013,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
  *    Object Init Functions
  */
 
-static CompBool pluginInitCore(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginInitCore(CompPlugin *plugin OY_UNUSED, CompObject *object OY_UNUSED, void *privateData OY_UNUSED)
 {
 #if defined(PLUGIN_DEBUG_)
   int dbg_switch = 60;
@@ -2143,11 +2141,11 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
    *  This is only a guess.
    */
   int attached_profiles = 0;
-  for(int i = 0; i < ps->nContexts; ++i)
+  for(unsigned long i = 0; i < ps->nContexts; ++i)
     attached_profiles += ps->contexts[i].cc.dst_profile ? 1:0;
 
   int transform_n = 0;
-  for(int i = 0; i < ps->nContexts; ++i)
+  for(unsigned long i = 0; i < ps->nContexts; ++i)
     transform_n += ps->contexts[i].cc.glTexture ? 1:0;
 
   /* test for stencil capabilities to place region ID */
@@ -2199,7 +2197,7 @@ clean_updateIccColorDesktopAtom:
   return status;
 }
 
-static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginInitDisplay(CompPlugin *plugin OY_UNUSED, CompObject *object, void *privateData)
 {
   CompDisplay *d = (CompDisplay *) object;
   PrivDisplay *pd = privateData;
@@ -2220,7 +2218,7 @@ static CompBool pluginInitDisplay(CompPlugin *plugin, CompObject *object, void *
 }
 
 
-static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginInitScreen(CompPlugin *plugin OY_UNUSED, CompObject *object, void *privateData)
 {
   CompScreen *s = (CompScreen *) object;
   PrivScreen *ps = privateData;
@@ -2230,11 +2228,6 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   fprintf( stderr, DBG_STRING"dev %d contexts %ld \n", DBG_ARGS,
           s->nOutputDev, ps->nContexts );
     
-  size_t size = 0;
-  int server = 0;
-  /* try to get the device profile atom */
-  oyPointer pp = getScreenProfile( s, screen, server, &size );
-
   GLint stencilBits = 0;
   glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
   if (stencilBits == 0)
@@ -2266,7 +2259,7 @@ static CompBool pluginInitScreen(CompPlugin *plugin, CompObject *object, void *p
   return TRUE;
 }
 
-static CompBool pluginInitWindow(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginInitWindow(CompPlugin *plugin OY_UNUSED, CompObject *object OY_UNUSED, void *privateData)
 {
   /* CompWindow *w = (CompWindow *) object; */
   PrivWindow *pw = privateData;
@@ -2290,12 +2283,12 @@ static dispatchObjectProc dispatchInitObject[] = {
  */
 
 
-static CompBool pluginFiniCore(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginFiniCore(CompPlugin *plugin OY_UNUSED, CompObject *object OY_UNUSED, void *privateData OY_UNUSED)
 {
   return TRUE;
 }
 
-static CompBool pluginFiniDisplay(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginFiniDisplay(CompPlugin *plugin OY_UNUSED, CompObject *object, void *privateData)
 {
   CompDisplay *d = (CompDisplay *) object;
   PrivDisplay *pd = privateData;
@@ -2310,7 +2303,7 @@ static CompBool pluginFiniDisplay(CompPlugin *plugin, CompObject *object, void *
   return TRUE;
 }
 
-static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginFiniScreen(CompPlugin *plugin OY_UNUSED, CompObject *object, void *privateData OY_UNUSED)
 {
   CompScreen *s = (CompScreen *) object;
   PrivScreen *ps = privateData;
@@ -2327,7 +2320,7 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
                       DBG_ARGS, error);
 
   /* switch profile atoms back */
-  for(int i = 0; i < ps->nContexts; ++i)
+  for(unsigned long i = 0; i < ps->nContexts; ++i)
   {
     device = oyConfigs_Get( devices, i );
 
@@ -2348,7 +2341,7 @@ static CompBool pluginFiniScreen(CompPlugin *plugin, CompObject *object, void *p
   return TRUE;
 }
 
-static CompBool pluginFiniWindow(CompPlugin *plugin, CompObject *object, void *privateData)
+static CompBool pluginFiniWindow(CompPlugin *plugin OY_UNUSED, CompObject *object OY_UNUSED, void *privateData OY_UNUSED)
 {
   return TRUE;
 }
@@ -2361,7 +2354,7 @@ static dispatchObjectProc dispatchFiniObject[] = {
 /**
  *    Plugin Interface
  */
-static CompBool pluginInit(CompPlugin *p)
+static CompBool pluginInit(CompPlugin *p OY_UNUSED)
 {
   oyMessageFunc_p( oyMSG_DBG, NULL, DBG_STRING, DBG_ARGS );
   return TRUE;
@@ -2494,12 +2487,12 @@ static void pluginFiniObject(CompPlugin *p, CompObject *o)
   compObjectFreePrivate( o );
 }
 
-static void pluginFini(CompPlugin *p)
+static void pluginFini(CompPlugin *p OY_UNUSED)
 {
   oyStructList_Release( &privates_cache );
 }
 
-static CompMetadata *pluginGetMetadata(CompPlugin *p)
+static CompMetadata *pluginGetMetadata(CompPlugin *p OY_UNUSED)
 {
   return &pluginMetadata;
 }
