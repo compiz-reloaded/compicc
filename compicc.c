@@ -837,7 +837,7 @@ static void    moveICCprofileAtoms   ( CompScreen        * s,
 
     const char * display_name = strdup(XDisplayString(s->display->display));
 
-    oyOptions_SetFromText( &opts, "////display_name",
+    oyOptions_SetFromString( &opts, "////display_name",
                            display_name, OY_CREATE_NEW );
 
     oyOptions_SetFromInt( &opts, "////screen", screen, 0, OY_CREATE_NEW );
@@ -946,13 +946,13 @@ static int     getDeviceProfile      ( CompScreen        * s,
     } else
     {
       oyOptions_s * options = 0;
-      oyOptions_SetFromText( &options,
+      oyOptions_SetFromString( &options,
                    "//" OY_TYPE_STD "/config/command",
                                        "list", OY_CREATE_NEW );
       oyOptions_SetFromInt( &options,
                             "////icc_profile_flags",
                             icc_profile_flags, 0, OY_CREATE_NEW );
-      oyOptions_SetFromText( &options,
+      oyOptions_SetFromString( &options,
                    "//" OY_TYPE_STD "/config/icc_profile.x_color_region_target",
                                        "yes", OY_CREATE_NEW );
       t_err = oyDeviceAskProfile2( device, options, &output->cc.dst_profile );
@@ -1104,7 +1104,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       job->cb_progress_context = (oyStruct_s*) oyPointer_Copy( oy_ptr, 0 );
       oyOptions_MoveInStruct( &options, OY_BEHAVIOUR_STD "/expensive_callback", (oyStruct_s**)&job, OY_CREATE_NEW );
       /* wait no longer than approximately 1 seconds */
-      oyOptions_SetFromText( &options, OY_BEHAVIOUR_STD "/expensive", "10", OY_CREATE_NEW );
+      oyOptions_SetFromString( &options, OY_BEHAVIOUR_STD "/expensive", "10", OY_CREATE_NEW );
       cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
       if (cc == NULL)
       {
@@ -1115,7 +1115,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       }
       oyOptions_Release( &options );
 
-      error = oyOptions_SetFromText( &options,
+      error = oyOptions_SetFromString( &options,
                                      "//" OY_TYPE_STD "/config/display_mode", "1",
                                      OY_CREATE_NEW );
       error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
@@ -1138,7 +1138,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
         oyConversion_Release( &cc );
         oyFilterNode_Release( &icc );
 
-        oyOptions_SetFromText( &options, OY_DEFAULT_CMM_CONTEXT, "lcm2",
+        oyOptions_SetFromString( &options, OY_DEFAULT_CMM_CONTEXT, "lcm2",
                                OY_CREATE_NEW );
         cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
         if (cc == NULL)
@@ -1149,7 +1149,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
           goto clean_setupColourTable;
         }
         oyOptions_Release( &options );
-        error = oyOptions_SetFromText( &options,
+        error = oyOptions_SetFromString( &options,
                                      "//"OY_TYPE_STD"/config/display_mode", "1",
                                      OY_CREATE_NEW );
         error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
@@ -1346,7 +1346,7 @@ void cleanDisplayProfiles( CompScreen *s )
 
     const char * display_name = strdup(XDisplayString(s->display->display));
 
-    oyOptions_SetFromText( &opts, "////display_name",
+    oyOptions_SetFromString( &opts, "////display_name",
                            display_name, OY_CREATE_NEW );
     oyOptions_Handle( "//" OY_TYPE_STD "/clean_profiles",
                                 opts,"clean_profiles",
@@ -1399,13 +1399,13 @@ int            needUpdate            ( Display           * display )
 
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
-  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
+  error = oyOptions_SetFromString( &options, "//" OY_TYPE_STD "/config/command",
                                  "list", OY_CREATE_NEW );
   if(error) fprintf(stdout,"%s %d", "found issues",error);
-  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
+  error = oyOptions_SetFromString( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
   if(error) fprintf(stdout,"%s %d", "found issues",error);
-  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/edid",
+  error = oyOptions_SetFromString( &options, "//" OY_TYPE_STD "/config/edid",
                                  "refresh", OY_CREATE_NEW );
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
   if(error) fprintf(stdout,"%s %d", "found issues",error);
@@ -1471,9 +1471,9 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
 
   /* obtain device informations, including geometry and ICC profiles
      from the according Oyranos module */
-  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/command",
+  error = oyOptions_SetFromString( &options, "//" OY_TYPE_STD "/config/command",
                                  "list", OY_CREATE_NEW );
-  error = oyOptions_SetFromText( &options, "//" OY_TYPE_STD "/config/device_rectangle",
+  error = oyOptions_SetFromString( &options, "//" OY_TYPE_STD "/config/device_rectangle",
                                  "true", OY_CREATE_NEW );
   error = oyDevicesGet( OY_TYPE_STD, "monitor", options, &devices );
   if(error > 0)
