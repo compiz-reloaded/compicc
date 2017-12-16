@@ -397,9 +397,8 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
 
   addFetchOpToFunctionData(data, "output", NULL, getFetchTarget(texture));
 
-  /* demultiply alpha */
-  addDataOpToFunctionData(data, "MUL output.rgb, output.a, output;");
-  addDataOpToFunctionData(data, "MUL temp.a, output.a, output.a;");
+  /* store alpha */
+  addDataOpToFunctionData(data, "MOV temp, output;");
 
   /* needed, but why? */
   addDataOpToFunctionData(data, "MAD output, output, program.env[%d], program.env[%d];", param, param + 1);
@@ -407,8 +406,8 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   /* colour transform through a texture lookup */
   addDataOpToFunctionData(data, "TEX output, output, texture[%d], 3D;", unit);
 
-  /* multiply alpha */
-  addDataOpToFunctionData(data, "MUL output, temp.a, output;");
+  /* recover alpha */
+  addDataOpToFunctionData(data, "MOV output.a, temp.a;");
 
   addColorOpToFunctionData (data, "output", "output");
 
@@ -1886,7 +1885,6 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
 
   int param = allocFragmentParameters(&fa, 2);
   int unit = allocFragmentTextureUnits(&fa, 1);
-
   int function = getProfileShader(s, texture, param, unit);
   if (function)
     addFragmentFunction(&fa, function);
