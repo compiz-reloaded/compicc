@@ -1800,6 +1800,7 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   if( !HAS_REGIONS(pw) )
     return status;
 
+  int use_stencil_test = glIsEnabled(GL_STENCIL_TEST);
   glEnable(GL_STENCIL_TEST);
 
   /* Replace the stencil value in places where we'd draw something */
@@ -1827,7 +1828,6 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
       if(b->x1 == 0 && b->x2 == 0 && b->y1 == 0 && b->y2 == 0)
         goto cleanDrawWindow;
 
-
       if(oy_debug >= 3)
       fprintf( stderr, DBG_STRING"STENCIL_ID = %lu (1 + colour_desktop_region_count=%ld * i=%lu + pw->stencil_id_start=%lu + j=%lu)\n", DBG_ARGS,
                STENCIL_ID,colour_desktop_region_count,i,pw->stencil_id_start,j);
@@ -1854,8 +1854,10 @@ static Bool pluginDrawWindow(CompWindow *w, const CompTransform *transform, cons
   /* Reset the color mask */
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-  glDisable(GL_STENCIL_TEST);
-
+  if(use_stencil_test)
+    glEnable(GL_STENCIL_TEST);
+  else
+    glDisable(GL_STENCIL_TEST);
 
   return status;
 }
@@ -1888,6 +1890,9 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   int function = getProfileShader(s, texture, param, unit);
   if (function)
     addFragmentFunction(&fa, function);
+
+  int use_stencil_test = glIsEnabled(GL_STENCIL_TEST);
+  int use_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
 
   if( HAS_REGIONS(pw) )
   {
@@ -1986,6 +1991,15 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
         (*s->drawWindowTexture) (w, texture, attrib, mask);
       WRAP(ps, s, drawWindowTexture, pluginDrawWindowTexture);
 
+      if(c->glTexture)
+      {
+        /* Deactivate the 3D texture */
+        (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
+        glBindTexture(GL_TEXTURE_3D, 0);
+        glDisable(GL_TEXTURE_3D);
+        (*s->activeTexture) (GL_TEXTURE0_ARB);
+      }
+
       cleanDrawTexture:
       if(intersection)
         XDestroyRegion( intersection );
@@ -1996,14 +2010,14 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     }
   }
 
-  /* Deactivate the 3D texture */
-  (*s->activeTexture) (GL_TEXTURE0_ARB + unit);
-  glBindTexture(GL_TEXTURE_3D, 0);
-  glDisable(GL_TEXTURE_3D);
-  (*s->activeTexture) (GL_TEXTURE0_ARB);
-
-  glDisable(GL_STENCIL_TEST);
-  glDisable(GL_SCISSOR_TEST);
+  if(use_stencil_test)
+    glEnable(GL_STENCIL_TEST);
+  else
+    glDisable(GL_STENCIL_TEST);
+  if(use_scissor_test)
+    glEnable(GL_SCISSOR_TEST);
+  else
+    glDisable(GL_SCISSOR_TEST);
 }
 
 
