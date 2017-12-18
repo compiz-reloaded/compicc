@@ -1909,7 +1909,29 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
     Region intersection = 0;
     /* draw the texture over the whole monitor to affect wobbly windows */
     XRectangle * r = &ps->contexts[i].xRect;
-    glScissor( r->x, s->height - r->y - r->height, r->width, r->height);
+    oyRectangle_s * scissor_box = oyRectangle_NewWith( r->x, s->height - r->y - r->height, r->width, r->height, NULL );
+    /* honour the previous scissor rectangle */
+    oyRectangle_s * scissor = oyRectangle_NewFrom( scissor_box, NULL );
+    GLint box[4] = {-1,-1,-1,-1};
+    glGetIntegerv( GL_SCISSOR_BOX, &box[0] );
+    oyRectangle_s * global_box = oyRectangle_NewWith( box[0], box[1], box[2], box[3], NULL );
+    oyRectangle_Trim( scissor, global_box );
+    if(oy_debug)
+    {
+      char * gb = strdup( oyRectangle_Show( global_box ) ),
+           * sb = strdup( oyRectangle_Show( scissor_box ) );
+      if(!oyRectangle_IsEqual( scissor_box, scissor ))
+        printf("GL_SCISSOR_BOX: %s scissor: %s trimmed: %s\n",
+               gb, sb, oyRectangle_Show( scissor ));
+      free(gb); free(sb);
+    }
+    oyRectangle_Release( &global_box );
+    oyRectangle_Release( &scissor_box );
+    glScissor( oyRectangle_GetGeo1(scissor, 0),
+               oyRectangle_GetGeo1(scissor, 1),
+               oyRectangle_GetGeo1(scissor, 2),
+               oyRectangle_GetGeo1(scissor, 3) );
+    oyRectangle_Release( &scissor );
 
     if(WINDOW_INVISIBLE(w))
       goto cleanDrawTexture;
