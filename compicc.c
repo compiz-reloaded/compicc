@@ -2030,6 +2030,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       if(screen)
         XDestroyRegion( screen );
     }
+    glScissor( box[0], box[1], box[2], box[3] );
   }
 
   if(use_stencil_test)
