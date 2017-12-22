@@ -1921,16 +1921,17 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       char * gb = strdup( oyRectangle_Show( global_box ) ),
            * sb = strdup( oyRectangle_Show( scissor_box ) );
       if(!oyRectangle_IsEqual( scissor_box, scissor ))
-        printf("GL_SCISSOR_BOX: %s scissor: %s trimmed: %s\n",
-               gb, sb, oyRectangle_Show( scissor ));
+        printf("%lu GL_SCISSOR_BOX: %s scissor: %s trimmed: %s\n",
+               i, gb, sb, oyRectangle_Show( scissor ));
       free(gb); free(sb);
     }
     oyRectangle_Release( &global_box );
+    if(ps->nContexts > 1)
+      glScissor( oyRectangle_GetGeo1(scissor_box, 0),
+                 oyRectangle_GetGeo1(scissor_box, 1),
+                 oyRectangle_GetGeo1(scissor_box, 2),
+                 oyRectangle_GetGeo1(scissor_box, 3) );
     oyRectangle_Release( &scissor_box );
-    glScissor( oyRectangle_GetGeo1(scissor, 0),
-               oyRectangle_GetGeo1(scissor, 1),
-               oyRectangle_GetGeo1(scissor, 2),
-               oyRectangle_GetGeo1(scissor, 3) );
     oyRectangle_Release( &scissor );
 
     if(WINDOW_INVISIBLE(w))
@@ -2030,7 +2031,8 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
       if(screen)
         XDestroyRegion( screen );
     }
-    glScissor( box[0], box[1], box[2], box[3] );
+    if(ps->nContexts > 1)
+      glScissor( box[0], box[1], box[2], box[3] );
   }
 
   if(use_stencil_test)
