@@ -406,8 +406,8 @@ static int getProfileShader(CompScreen *s, CompTexture *texture, int param, int 
   /* colour transform through a texture lookup */
   addDataOpToFunctionData(data, "TEX output, output, texture[%d], 3D;", unit);
 
-  /* recover alpha */
-  addDataOpToFunctionData(data, "MOV output.a, temp.a;");
+  /* multiply alpha */
+  addDataOpToFunctionData(data, "MUL output, temp.a, output;");
 
   addColorOpToFunctionData (data, "output", "output");
 
