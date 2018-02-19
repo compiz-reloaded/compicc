@@ -57,8 +57,12 @@
 #define oyCompLogMessage(disp_, plug_in_name, debug_level, format_, ... ) \
         compLogMessage( disp_, plug_in_name, debug_level, format_, __VA_ARGS__ )
 #else
-#define oyCompLogMessage(disp_, plug_in_name, debug_level, format_, ... ) \
-        oy_debug?oyMessageFunc_p(oyMSG_DBG,NULL,format_, __VA_ARGS__):compLogMessage( plug_in_name, debug_level, format_, __VA_ARGS__ )
+#define oyCompLogMessage( disp_, plug_in_name, debug_level, format_, ... ) \
+{ if(oy_debug) \
+    oyMessageFunc_p( oyMSG_DBG, NULL, format_, __VA_ARGS__); \
+  else \
+    compLogMessage( plug_in_name, debug_level, format_, __VA_ARGS__ ); \
+}
 #endif
 
 #if OY_COMPIZ_VERSION < 900
@@ -326,9 +330,12 @@ static inline XcolorProfile *XcolorProfileNext(XcolorProfile *profile)
 static inline unsigned long XcolorProfileCount(void *data, unsigned long nBytes)
 {
 	unsigned long count = 0;
+  XcolorProfile * ptr;
 
-	for (XcolorProfile *ptr = data; (intptr_t) ptr < (intptr_t)(data + nBytes); ptr = XcolorProfileNext(ptr))
-		++count;
+  for (ptr = (XcolorProfile*)data;
+       (uintptr_t)ptr < (uintptr_t)data + nBytes;
+       ptr = XcolorProfileNext(ptr))
+    ++count;
 
 	return count;
 }
@@ -1901,7 +1908,7 @@ static void pluginDrawWindowTexture(CompWindow *w, CompTexture *texture, const F
   } else
     glEnable(GL_SCISSOR_TEST);
 
-  unsigned long i, j;
+  unsigned long i, j = 0;
   for(i = 0; i < ps->nContexts; ++i)
   {
     Region tmp = 0;
@@ -2152,10 +2159,11 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
     /* check for taking over of colour service */
     if(atom_colour_server_name && strcmp(atom_colour_server_name, my_id) != 0)
     {
-      if(atom_time < icc_color_desktop_last_time ||
-         /* check for the only other known color server; it can only run for KWin */
-         atom_colour_server_name && strcmp(atom_colour_server_name, "kolorserver") == 0 ||
-         request == 2)
+      if( atom_time < icc_color_desktop_last_time ||
+          /* check for the only other known color server; it can only run for KWin */
+          ( atom_colour_server_name &&
+            strcmp(atom_colour_server_name, "kolorserver") == 0 ) ||
+          request == 2  )
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nTaking over colour service from old _ICC_COLOR_DESKTOP: %s.",
