@@ -2153,11 +2153,17 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
     if(atom_colour_server_name && strcmp(atom_colour_server_name, my_id) != 0)
     {
       if(atom_time < icc_color_desktop_last_time ||
+         /* check for the only other known color server; it can only run for KWin */
+         atom_colour_server_name && strcmp(atom_colour_server_name, "kolorserver") == 0 ||
          request == 2)
       {
         oyCompLogMessage( d, "compicc", CompLogLevelWarn,
                     DBG_STRING "\nTaking over colour service from old _ICC_COLOR_DESKTOP: %s.",
                     DBG_ARGS, old_atom ? old_atom : "????" );
+
+        fetchProperty( d->display, RootWindow(d->display,0),
+                        pd->iccColorDesktop, XA_STRING, &n, True);
+
       } else
       if(atom_time > icc_color_desktop_last_time)
       {
