@@ -1137,45 +1137,6 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
 
       oyFilterGraph_s * cc_graph = oyConversion_GetGraph( cc );
       oyFilterNode_s * icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
-      oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
-
-      if(!blob)
-      {
-        oyConversion_Release( &cc );
-        oyFilterNode_Release( &icc );
-
-        oyOptions_SetFromString( &options, OY_DEFAULT_CMM_CONTEXT, "lcm2",
-                               OY_CREATE_NEW );
-        cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
-        if (cc == NULL)
-        {
-          oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
-                      DBG_STRING "no conversion created for %s",
-                      DBG_ARGS, ccontext->output_name);
-          goto clean_setupColourTable;
-        }
-        oyOptions_Release( &options );
-        error = oyOptions_SetFromString( &options,
-                                     "//"OY_TYPE_STD"/config/display_mode", "1",
-                                     OY_CREATE_NEW );
-        error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
-        icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
-        blob = oyFilterNode_ToBlob( icc, NULL );
-      }
-
-      if(oy_debug)
-      {
-        oyOptions_s * node_opts = oyFilterNode_GetOptions( icc, 0 );
-        oyProfile_s * dl;
-        dl = oyProfile_FromMem( oyBlob_GetSize( blob ),
-                                oyBlob_GetPointer( blob ), 0,0 );
-        const char * fn;
-        int j = 0;
-        while((fn = oyProfile_GetFileName( dl, j )) != NULL)
-          fprintf( stdout, " -> \"%s\"[%d]", fn?fn:"----", j++ );
-        fprintf( stdout, "\n" );
-        fprintf( stdout, "%s\n", oyOptions_GetText( node_opts, oyNAME_NAME ) );
-      }
 
       uint32_t exact_hash_size = 0;
       char * hash_text = 0;
@@ -1206,6 +1167,46 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       } else
       {
+        oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
+
+        if(!blob)
+        {
+          oyConversion_Release( &cc );
+          oyFilterNode_Release( &icc );
+
+          oyOptions_SetFromString( &options, OY_DEFAULT_CMM_CONTEXT, "lcm2",
+                               OY_CREATE_NEW );
+          cc = oyConversion_CreateBasicPixels( image_in, image_out, options, 0 );
+          if (cc == NULL)
+          {
+            oyCompLogMessage( NULL, "compicc", CompLogLevelWarn,
+                      DBG_STRING "no conversion created for %s",
+                      DBG_ARGS, ccontext->output_name);
+            goto clean_setupColourTable;
+          }
+          oyOptions_Release( &options );
+          error = oyOptions_SetFromString( &options,
+                                     "//"OY_TYPE_STD"/config/display_mode", "1",
+                                     OY_CREATE_NEW );
+          error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
+          icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
+          blob = oyFilterNode_ToBlob( icc, NULL );
+        }
+
+        if(oy_debug)
+        {
+          oyOptions_s * node_opts = oyFilterNode_GetOptions( icc, 0 );
+          oyProfile_s * dl;
+          dl = oyProfile_FromMem( oyBlob_GetSize( blob ),
+                                oyBlob_GetPointer( blob ), 0,0 );
+          const char * fn;
+          int j = 0;
+          while((fn = oyProfile_GetFileName( dl, j )) != NULL)
+            fprintf( stdout, " -> \"%s\"[%d]", fn?fn:"----", j++ );
+          fprintf( stdout, "\n" );
+          fprintf( stdout, "%s\n", oyOptions_GetText( node_opts, oyNAME_NAME ) );
+        }
+
         uint16_t in[3];
         for (int r = 0; r < GRIDPOINTS; ++r)
         {
@@ -1240,19 +1241,19 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
 
         oyHash_SetPointer( entry, (oyStruct_s*) clut );
-      }
 
-      if(oy_debug >= 2)
-      {
-        char * fn = 0;
-        static int c = 0;
-        oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.ppm", c);
-        oyImage_WritePPM(image_out, fn, hash_text);
-        free(fn); fn = 0;
-        oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.icc", c++);
-        FILE*fp=fopen(fn,"w");
-        if(fp) fwrite( oyBlob_GetPointer( blob ), sizeof(char), oyBlob_GetSize( blob ), fp );
-        if(fp) fclose(fp);
+        if(oy_debug >= 2)
+        {
+          char * fn = 0;
+          static int c = 0;
+          oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.ppm", c);
+          oyImage_WritePPM(image_out, fn, hash_text);
+          free(fn); fn = 0;
+          oyStringAddPrintf( &fn, malloc, free, "dbg-clut-%d.icc", c++);
+          FILE*fp=fopen(fn,"w");
+          if(fp) fwrite( oyBlob_GetPointer( blob ), sizeof(char), oyBlob_GetSize( blob ), fp );
+          if(fp) fclose(fp);
+        }
       }
 
       if(hash_text)

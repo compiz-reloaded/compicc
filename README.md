@@ -96,7 +96,7 @@ for a local build use:
 
     $ ./configure --plugindir=$HOME/.compiz/plugins --icondir=$HOME/.local/share/icons --regdir=$HOME/.compiz/metadata
 
-While that is nice for testing, For a regular installation compiz needs to
+While that is nice for testing, for a regular installation compiz needs to
 see its plugins at starttime, typical registred with system wide ldconfig.
 
 ### Install
