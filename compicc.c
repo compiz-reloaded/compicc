@@ -2426,6 +2426,8 @@ static dispatchObjectProc dispatchFiniObject[] = {
  */
 static CompBool pluginInit(CompPlugin *p OY_UNUSED)
 {
+  const char * od = getenv("OY_DEBUG");
+  if(od && od[0]) oy_debug = atoi(od);
   oyMessageFunc_p( oyMSG_DBG, NULL, DBG_STRING, DBG_ARGS );
   return TRUE;
 }
