@@ -1472,8 +1472,8 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
   /* reset Oyranos DB cache to see new DB values */
   oyGetPersistentStrings( NULL );
   if(oy_debug)
-        printf( DBG_STRING "resetted Oyranos DB cache\n",
-                DBG_ARGS );
+        printf( DBG_STRING "resetted Oyranos DB cache init: %d screen: %d\n",
+                DBG_ARGS, init, screen );
 
 
   /* obtain device informations, including geometry and ICC profiles
@@ -1489,6 +1489,14 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
                       DBG_ARGS, error);
   oyOptions_Release( &options );
 
+  if(colour_desktop_can && init)
+  {
+    // set _ICC_COLOR_DESKTOP in advance to handle vcgt correctly
+    error = updateIccColorDesktopAtom( s, ps, 2 );
+    oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
+                      DBG_STRING "updateIccColorDesktopAtom() status: %d",
+                      DBG_ARGS, error);
+  }
 
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
@@ -2215,7 +2223,7 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
              transform_n ? (stencilBits?my_capabilities:"|ICM|ICR|ICA|V0.3|"):"|V0.3|",
              my_id );
  
-   if(attached_profiles)
+   if(attached_profiles || request == 2)
       changeProperty( d->display,
                                 pd->iccColorDesktop, XA_STRING,
                                 (unsigned char*)atom_text,
@@ -2227,6 +2235,16 @@ static int updateIccColorDesktopAtom ( CompScreen        * s,
                                 pd->iccColorDesktop, XA_STRING,
                                 (unsigned char*)NULL, 0 );
       colour_desktop_can = 0;
+    }
+
+    if(oy_debug)
+    {
+      data = fetchProperty( d->display, RootWindow(d->display,0),
+                        pd->iccColorDesktop, XA_STRING, &n, False);
+
+      oyCompLogMessage( d, "compicc", CompLogLevelDebug,
+                    DBG_STRING "request=%d Set _ICC_COLOR_DESKTOP: %s.",
+                    DBG_ARGS, request, data ? data : "????" );
     }
 
     if(atom_text) cicc_free( atom_text );
