@@ -2365,11 +2365,6 @@ static CompBool pluginFiniDisplay(CompPlugin *plugin OY_UNUSED, CompObject *obje
 
   UNWRAP(pd, d, handleEvent);
 
-  /* remove desktop colour management service mark */
-  changeProperty( d->display,
-                                pd->iccColorDesktop, XA_STRING,
-                                (unsigned char*)NULL, 0 );
-
   return TRUE;
 }
 
@@ -2382,6 +2377,13 @@ static CompBool pluginFiniScreen(CompPlugin *plugin OY_UNUSED, CompObject *objec
       init = 0;
   oyConfigs_s * devices = 0;
   oyConfig_s * device = 0;
+  Atom iccColorDesktop = XInternAtom(s->display->display, XCM_COLOR_DESKTOP, False);
+
+  /* remove desktop colour management service mark */
+  changeProperty( s->display->display,
+                                iccColorDesktop, XA_STRING,
+                                (unsigned char*)NULL, 0 );
+  XFlush( s->display->display );
 
   error = oyDevicesGet( OY_TYPE_STD, "monitor", 0, &devices );
   if(error > 0)
