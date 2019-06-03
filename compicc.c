@@ -1157,9 +1157,6 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
       oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "clut from cache %s %s",
                       DBG_ARGS, clut?"obtained":"no", hash_text );
-      if(oy_debug)
-        printf(       DBG_STRING "clut from cache %s %s",
-                      DBG_ARGS, clut?"obtained":"no", hash_text );
       if(clut)
       {
         ptr = (int**)oyArray2d_GetData(clut);
@@ -1191,6 +1188,9 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
           error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
           icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
           blob = oyFilterNode_ToBlob( icc, NULL );
+          oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
+                      DBG_STRING "created %s",
+                      DBG_ARGS, t );
         }
 
         if(oy_debug)
