@@ -48,7 +48,6 @@ support the X Color Management specification to continue to work as
 expected. The only workaround for them is to disable CompICC during 
 calibration and ICC profiling.
 
-
 ### Links
 * [Development & Sources](https://github.com/compiz-reloaded/compicc)
 * [Download](https://github.com/compiz-reloaded/compicc/releases)
@@ -158,3 +157,13 @@ For a colorimetric verification use ArgyllCMS and a according color measurement 
 To report bugs you can run compiz with debug info on and send the log text:
 
     $ compiz --replace --debug ccp
+
+### Terms for CompICC Color Correction
+
+* **Oyranos, colord** and **ArgyllCMS** support *ICC configuration in X11*, store configuration in a *persitent DB* and handle the *calibration* part.
+* **xcalib** is a *calibration only* tool to write the 2D calibration curves into the graphic card hardware. It is used by Oyranos. (Contrary colord and ArgyllCMS have own calibration code.)
+* [Calibration versus Characterisation - ArgyllCMS](https://www.argyllcms.com/doc/calvschar.html)
+* **CompICC** detects ICC monitor profiles configured by Oyranos and other settings, e.g. night time white point effect. CompICC uses Oyranos to create from these ICC data *3D LookUp Tables* (LUT). CompICC attaches the 3D LUT's as OpenGL 3D textures + shaders to Compiz *window textures*. The OpenGL shaders + 3Dtexture convert pixel values on the GPU in nearly real time.
+* CompICC is a plugin for the **Compiz OpenGL compositor**. They run both on top of the X11 windowing system
+* **X11** provides API's to connect to *hardware, OpenGL API* and *drivers*. It is *not a compositor* on it's own and has *no access* to window textures.
+* [Colour Correction Concepts for Monitors - Oyranos](https://www.oyranos.org/2011/09/colour-correction-concepts-for-monitors/index.html)
