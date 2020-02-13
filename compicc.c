@@ -1489,7 +1489,7 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
                       DBG_ARGS, error);
   oyOptions_Release( &options );
 
-  if(colour_desktop_can && init)
+  if(colour_desktop_can && !init)
   {
     // set _ICC_COLOR_DESKTOP in advance to handle vcgt correctly
     error = updateIccColorDesktopAtom( s, ps, 2 );
@@ -1525,11 +1525,21 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
                   DBG_ARGS, i, ps->nContexts, &ps->contexts[i],
                   ps->contexts[i].cc.dst_profile);
     }
+
     setupOutputTable( s, device, i );
 
     oyConfig_Release( &device );
   }
   oyConfigs_Release( &devices );
+
+  if(colour_desktop_can && init)
+  {
+    // set _ICC_COLOR_DESKTOP after to handle vcgt correctly
+    error = updateIccColorDesktopAtom( s, ps, 2 );
+    oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
+                      DBG_STRING "updateIccColorDesktopAtom() status: %d",
+                      DBG_ARGS, error);
+  }
 
   {
     int all = 1;
