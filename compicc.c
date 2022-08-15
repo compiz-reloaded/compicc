@@ -1368,6 +1368,7 @@ static void setupOutputs(CompScreen *s)
 {
   PrivScreen *ps = compObjectGetPrivate((CompObject *) s);
   int n;
+  CompDisplay * d = s->display;
 
   /* clean memory */
   {
@@ -1378,6 +1379,7 @@ static void setupOutputs(CompScreen *s)
 
   n = s->nOutputDev;
 
+  oyCompLogMessage(d, "compicc", CompLogLevelDebug, DBG_STRING "nOutputDev: %d", DBG_ARGS, n );
   {
     int i;
     ps->nContexts = n;
@@ -1498,6 +1500,15 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
                       DBG_ARGS, error);
   }
 
+  if(colour_desktop_can && init)
+  {
+    // set _ICC_COLOR_DESKTOP before to unset vcgt correctly
+    error = updateIccColorDesktopAtom( s, ps, 2 );
+    oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
+                      DBG_STRING "updateIccColorDesktopAtom() status: %d",
+                      DBG_ARGS, error);
+  }
+
   if(colour_desktop_can)
   for (unsigned long i = 0; i < ps->nContexts; ++i)
   {
@@ -1531,15 +1542,6 @@ static void updateOutputConfiguration(CompScreen *s, CompBool init, int screen)
     oyConfig_Release( &device );
   }
   oyConfigs_Release( &devices );
-
-  if(colour_desktop_can && init)
-  {
-    // set _ICC_COLOR_DESKTOP after to handle vcgt correctly
-    error = updateIccColorDesktopAtom( s, ps, 2 );
-    oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
-                      DBG_STRING "updateIccColorDesktopAtom() status: %d",
-                      DBG_ARGS, error);
-  }
 
   {
     int all = 1;
