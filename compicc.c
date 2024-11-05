@@ -1164,7 +1164,7 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                 sizeof(GLushort) * GRIDPOINTS*GRIDPOINTS*GRIDPOINTS * 3 );
       } else
       {
-        oyBlob_s * blob = oyFilterNode_ToBlob( icc, NULL );
+        oyBlob_s * blob = icc ? oyFilterNode_ToBlob( icc, NULL ) : NULL;
 
         if(!blob)
         {
@@ -1186,8 +1186,8 @@ static void    setupColourTable      ( PrivColorContext  * ccontext,
                                      "//"OY_TYPE_STD"/config/display_mode", "1",
                                      OY_CREATE_NEW );
           error = oyConversion_Correct(cc, "//" OY_TYPE_STD "/icc_color", flags, options);
-          icc = oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 );
-          blob = oyFilterNode_ToBlob( icc, NULL );
+          icc = cc_graph ? oyFilterGraph_GetNode( cc_graph, -1, "///icc_color", 0 ) : NULL;
+          blob = icc ? oyFilterNode_ToBlob( icc, NULL ) : NULL;
           oyCompLogMessage( NULL, "compicc", CompLogLevelDebug,
                       DBG_STRING "created %s",
                       DBG_ARGS, t );
